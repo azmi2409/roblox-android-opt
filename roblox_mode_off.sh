@@ -144,40 +144,57 @@ enable_browsers() {
 }
 
 # ============================================================
+# Stop Watchdog
+# ============================================================
+stop_watchdog() {
+  if [ -f /data/local/tmp/roblox_watchdog.pid ]; then
+    pid=$(cat /data/local/tmp/roblox_watchdog.pid)
+    kill "$pid" 2>/dev/null
+    rm -f /data/local/tmp/roblox_watchdog.pid
+    print_status "$GREEN" "  Watchdog stopped (PID $pid)"
+  else
+    print_status "$YELLOW" "  No watchdog running"
+  fi
+}
+
+# ============================================================
 # Main Execution
 # ============================================================
 printf "\n"
 print_status "$CYAN" "=== ROBLOX MODE: OFF ==="
 printf "\n"
 
-print_status "$CYAN" "[1/10] Checking root access..."
+print_status "$CYAN" "[1/11] Stopping watchdog..."
+stop_watchdog
+
+print_status "$CYAN" "[2/11] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/10] Disabling ZRAM..."
+print_status "$CYAN" "[3/11] Disabling ZRAM..."
 disable_zram
 
-print_status "$CYAN" "[3/10] Restoring swappiness..."
+print_status "$CYAN" "[4/11] Restoring swappiness..."
 restore_swappiness
 
-print_status "$CYAN" "[4/10] Restoring VM kernel parameters..."
+print_status "$CYAN" "[5/11] Restoring VM kernel parameters..."
 restore_vm_kernel
 
-print_status "$CYAN" "[5/10] Restoring animations..."
+print_status "$CYAN" "[6/11] Restoring animations..."
 restore_animations
 
-print_status "$CYAN" "[6/10] Restoring LMK minfree..."
+print_status "$CYAN" "[7/11] Restoring LMK minfree..."
 restore_lmk
 
-print_status "$CYAN" "[7/10] Restoring Dalvik heap..."
+print_status "$CYAN" "[8/11] Restoring Dalvik heap..."
 restore_dalvik
 
-print_status "$CYAN" "[8/10] Restoring hardware overlays..."
+print_status "$CYAN" "[9/11] Restoring hardware overlays..."
 restore_hw_overlays
 
-print_status "$CYAN" "[9/10] Restoring display settings..."
+print_status "$CYAN" "[10/11] Restoring display settings..."
 restore_display
 
-print_status "$CYAN" "[10/10] Re-enabling browsers..."
+print_status "$CYAN" "[11/11] Re-enabling browsers..."
 enable_browsers
 
 printf "\n"

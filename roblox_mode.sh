@@ -259,27 +259,53 @@ disable_browsers() {
 # ============================================================
 # Roblox Instance Configuration (VSCloner multi-user)
 # ============================================================
-# VSCloner runs clones under separate Android user profiles
-# All instances use the same package, different user IDs
 ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
-
-# User IDs: 0 = main, 10/11 = VSCloner DoppelgangerUsers
-ROBLOX_USER_1=0
-ROBLOX_USER_2=10
-ROBLOX_USER_3=11
 
 # Display dimensions (must match configure_freeform_display)
 DISPLAY_W=720
 DISPLAY_H=1280
 
 # ============================================================
+# Detect All Users with Roblox Installed
+# ============================================================
+detect_roblox_users() {
+  # Get all user IDs from the system
+  ROBLOX_USERS=""
+  user_ids=$(pm list users 2>/dev/null | grep "UserInfo" | sed 's/.*UserInfo{\([0-9]*\):.*/\1/')
+
+  for uid in $user_ids; do
+    # Check if Roblox is installed for this user
+    if pm list packages --user "$uid" 2>/dev/null | grep -q "$ROBLOX_PKG"; then
+      ROBLOX_USERS="$ROBLOX_USERS $uid"
+    fi
+  done
+
+  # Trim leading space
+  ROBLOX_USERS=$(echo "$ROBLOX_USERS" | sed 's/^ //')
+
+  USER_COUNT=0
+  for u in $ROBLOX_USERS; do
+    USER_COUNT=$((USER_COUNT + 1))
+  done
+
+  if [ "$USER_COUNT" -eq 0 ]; then
+    print_status "$RED" "No users with Roblox installed found"
+    return 1
+  fi
+
+  print_status "$GREEN" "Found $USER_COUNT user(s) with Roblox: $ROBLOX_USERS"
+
+  # Save user list for watchdog
+  echo "$ROBLOX_USERS" > /data/local/tmp/roblox_users.txt
+  return 0
+}
+
+# ============================================================
 # Get Task ID for a User's Roblox Instance
 # ============================================================
 get_task_id() {
   user_id="$1"
-  # Match by package name; for multi-user we grab the most recent
-  # task that belongs to this user's Roblox
   am stack list 2>/dev/null | grep "$ROBLOX_PKG" | grep "userId=$user_id" | head -1 | sed 's/.*taskId=\([0-9]*\).*/\1/'
 }
 
@@ -287,54 +313,37 @@ get_task_id() {
 # Launch and Position Roblox Instances
 # ============================================================
 launch_roblox_instances() {
+  if ! detect_roblox_users; then
+    return 1
+  fi
+
   print_status "$CYAN" "Launching and positioning Roblox instances..."
 
-  ROW_H=$((DISPLAY_H / 3))
+  ROW_H=$((DISPLAY_H / USER_COUNT))
+  instance=0
 
-  # --- Instance 1: top row ---
-  print_status "$CYAN" "  Launching instance 1 (user $ROBLOX_USER_1)..."
-  am start --user "$ROBLOX_USER_1" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
-  sleep 8
+  for uid in $ROBLOX_USERS; do
+    instance=$((instance + 1))
+    TOP=$((ROW_H * (instance - 1)))
+    BOT=$((ROW_H * instance))
 
-  TASK1=$(get_task_id "$ROBLOX_USER_1")
-  if [ -n "$TASK1" ]; then
-    am task resize "$TASK1" 0 0 "$DISPLAY_W" "$ROW_H" 2>/dev/null
-    print_status "$GREEN" "  Instance 1 positioned: 0,0 -> ${DISPLAY_W},${ROW_H}"
-  else
-    print_status "$YELLOW" "  Could not find task for instance 1"
-  fi
+    # Last instance takes remaining pixels to avoid gaps
+    if [ "$instance" -eq "$USER_COUNT" ]; then
+      BOT=$DISPLAY_H
+    fi
 
-  # --- Instance 2: middle row ---
-  TOP2=$ROW_H
-  BOT2=$((ROW_H * 2))
+    print_status "$CYAN" "  Launching instance $instance (user $uid)..."
+    am start --user "$uid" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
+    sleep 8
 
-  print_status "$CYAN" "  Launching instance 2 (user $ROBLOX_USER_2)..."
-  am start --user "$ROBLOX_USER_2" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
-  sleep 8
-
-  TASK2=$(get_task_id "$ROBLOX_USER_2")
-  if [ -n "$TASK2" ]; then
-    am task resize "$TASK2" 0 "$TOP2" "$DISPLAY_W" "$BOT2" 2>/dev/null
-    print_status "$GREEN" "  Instance 2 positioned: 0,${TOP2} -> ${DISPLAY_W},${BOT2}"
-  else
-    print_status "$YELLOW" "  Could not find task for instance 2"
-  fi
-
-  # --- Instance 3: bottom row ---
-  TOP3=$((ROW_H * 2))
-  BOT3=$DISPLAY_H
-
-  print_status "$CYAN" "  Launching instance 3 (user $ROBLOX_USER_3)..."
-  am start --user "$ROBLOX_USER_3" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
-  sleep 8
-
-  TASK3=$(get_task_id "$ROBLOX_USER_3")
-  if [ -n "$TASK3" ]; then
-    am task resize "$TASK3" 0 "$TOP3" "$DISPLAY_W" "$BOT3" 2>/dev/null
-    print_status "$GREEN" "  Instance 3 positioned: 0,${TOP3} -> ${DISPLAY_W},${BOT3}"
-  else
-    print_status "$YELLOW" "  Could not find task for instance 3"
-  fi
+    task_id=$(get_task_id "$uid")
+    if [ -n "$task_id" ]; then
+      am task resize "$task_id" 0 "$TOP" "$DISPLAY_W" "$BOT" 2>/dev/null
+      print_status "$GREEN" "  Instance $instance positioned: 0,$TOP -> ${DISPLAY_W},$BOT"
+    else
+      print_status "$YELLOW" "  Could not find task for instance $instance"
+    fi
+  done
 }
 
 # ============================================================
@@ -355,6 +364,31 @@ trim_memory() {
 }
 
 # ============================================================
+# Start Watchdog Process
+# ============================================================
+start_watchdog() {
+  # Kill any existing watchdog
+  if [ -f /data/local/tmp/roblox_watchdog.pid ]; then
+    old_pid=$(cat /data/local/tmp/roblox_watchdog.pid)
+    kill "$old_pid" 2>/dev/null
+  fi
+
+  # Find the watchdog script
+  SCRIPT_DIR=$(dirname "$(readlink -f "$0")" 2>/dev/null)
+  if [ -z "$SCRIPT_DIR" ]; then
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+  fi
+
+  if [ -f "$SCRIPT_DIR/roblox_watchdog.sh" ]; then
+    sh "$SCRIPT_DIR/roblox_watchdog.sh" &
+    print_status "$GREEN" "Watchdog started (PID $!)"
+  else
+    print_status "$YELLOW" "Watchdog script not found at $SCRIPT_DIR/roblox_watchdog.sh"
+    print_status "$YELLOW" "Run manually: su -c 'sh roblox_watchdog.sh &'"
+  fi
+}
+
+# ============================================================
 # Launch Summary
 # ============================================================
 launch_summary() {
@@ -366,9 +400,9 @@ launch_summary() {
   print_status "$CYAN" "  GPU/compositor:     ~400MB"
   print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
   print_status "$CYAN" ""
-  print_status "$CYAN" "Freeform Layout (3 rows, portrait):"
-  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} (native)"
-  print_status "$CYAN" "  Per window: ${DISPLAY_W}x$((DISPLAY_H / 3)) each"
+  print_status "$CYAN" "Freeform Layout (portrait):"
+  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H}"
+  print_status "$CYAN" "  Instances:  auto-detected from installed users"
   print_status "$CYAN" ""
   print_status "$CYAN" "To manually resize a window:"
   print_status "$CYAN" "  am stack list                              # find taskId"
@@ -382,47 +416,50 @@ printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE: ON ==="
 printf "\n"
 
-print_status "$CYAN" "[1/14] Checking root access..."
+print_status "$CYAN" "[1/15] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/14] Cleaning background processes..."
+print_status "$CYAN" "[2/15] Cleaning background processes..."
 cleanup_background
 
-print_status "$CYAN" "[3/14] Dropping filesystem caches..."
+print_status "$CYAN" "[3/15] Dropping filesystem caches..."
 drop_caches
 
-print_status "$CYAN" "[4/14] Configuring ZRAM..."
+print_status "$CYAN" "[4/15] Configuring ZRAM..."
 configure_zram
 
-print_status "$CYAN" "[5/14] Tuning swappiness..."
+print_status "$CYAN" "[5/15] Tuning swappiness..."
 tune_swappiness
 
-print_status "$CYAN" "[6/14] Tuning VM kernel parameters..."
+print_status "$CYAN" "[6/15] Tuning VM kernel parameters..."
 tune_vm_kernel
 
-print_status "$CYAN" "[7/14] Disabling animations..."
+print_status "$CYAN" "[7/15] Disabling animations..."
 disable_animations
 
-print_status "$CYAN" "[8/14] Tuning Low Memory Killer..."
+print_status "$CYAN" "[8/15] Tuning Low Memory Killer..."
 tune_lmk
 
-print_status "$CYAN" "[9/14] Configuring Dalvik heap limits..."
+print_status "$CYAN" "[9/15] Configuring Dalvik heap limits..."
 tune_dalvik_heap
 
-print_status "$CYAN" "[10/14] Tuning graphics settings..."
+print_status "$CYAN" "[10/15] Tuning graphics settings..."
 tune_graphics
 
-print_status "$CYAN" "[11/14] Configuring freeform display..."
+print_status "$CYAN" "[11/15] Configuring freeform display..."
 configure_freeform_display
 
-print_status "$CYAN" "[12/14] Disabling browsers..."
+print_status "$CYAN" "[12/15] Disabling browsers..."
 disable_browsers
 
-print_status "$CYAN" "[13/14] Launching and positioning Roblox instances..."
+print_status "$CYAN" "[13/15] Launching and positioning Roblox instances..."
 launch_roblox_instances
 
-print_status "$CYAN" "[14/14] Trimming memory..."
+print_status "$CYAN" "[14/15] Trimming memory..."
 trim_memory
+
+print_status "$CYAN" "[15/15] Starting watchdog..."
+start_watchdog
 launch_summary
 
 printf "\n"
