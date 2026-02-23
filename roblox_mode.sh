@@ -217,12 +217,17 @@ configure_freeform_display() {
   settings put system accelerometer_rotation 0 2>/dev/null
   print_status "$GREEN" "Auto-rotation disabled (portrait locked)"
 
+  # Set portrait resolution explicitly
+  wm size 1080x1920 2>/dev/null
+  print_status "$GREEN" "Display resolution set to 1080x1920 (portrait)"
+
+  # Standard density for vsphone KVIP
+  wm density 320 2>/dev/null
+  print_status "$GREEN" "Display density set to 320dpi"
+
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
-
-  # Using native portrait resolution (vsphone KVIP: 1080x1920)
-  print_status "$GREEN" "Using native display resolution"
 }
 
 # ============================================================
