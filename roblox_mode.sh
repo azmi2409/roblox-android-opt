@@ -213,17 +213,15 @@ tune_graphics() {
 configure_freeform_display() {
   print_status "$CYAN" "Configuring display for freeform stacking..."
 
-  # Force landscape orientation
+  # Keep portrait orientation (native), disable auto-rotate
   settings put system accelerometer_rotation 0 2>/dev/null
-  settings put system user_rotation 1 2>/dev/null
-  print_status "$GREEN" "Orientation locked to landscape"
+  print_status "$GREEN" "Auto-rotation disabled (portrait locked)"
 
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
 
-  # Using native resolution (vsphone KVIP: 1920x1080)
-  # wm size command is NOT used — it breaks resolution on some devices
+  # Using native portrait resolution (vsphone KVIP: 1080x1920)
   print_status "$GREEN" "Using native display resolution"
 }
 
@@ -263,8 +261,8 @@ ROBLOX_PKG_2="com.roblox.client"  # Clone 1 (Island/Shelter/work profile)
 ROBLOX_PKG_3="com.roblox.client"  # Clone 2 (Island/Shelter/work profile)
 
 # Display dimensions (must match configure_freeform_display)
-DISPLAY_W=1920
-DISPLAY_H=1080
+DISPLAY_W=1080
+DISPLAY_H=1920
 
 # ============================================================
 # Get Task ID for a Package
@@ -377,7 +375,7 @@ launch_summary() {
   print_status "$CYAN" "  GPU/compositor:     ~400MB"
   print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
   print_status "$CYAN" ""
-  print_status "$CYAN" "Freeform Layout (3 vertical rows, landscape):"
+  print_status "$CYAN" "Freeform Layout (3 rows, portrait):"
   print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} (native)"
   print_status "$CYAN" "  Per window: ${DISPLAY_W}x$((DISPLAY_H / 3)) each"
   print_status "$CYAN" ""

@@ -110,8 +110,6 @@ restore_display() {
   # Restore auto-rotation
   settings put system accelerometer_rotation 1 2>/dev/null
   print_status "$GREEN" "  Auto-rotation restored"
-
-  # Resolution/density were not changed, no reset needed
 }
 
 # ============================================================
