@@ -284,6 +284,10 @@ tune_graphics() {
 # ============================================================
 # Freeform Display Configuration
 # ============================================================
+# Per-instance ideal size
+INSTANCE_W=360
+INSTANCE_H=640
+
 configure_freeform_display() {
   print_status "$CYAN" "Configuring display for freeform stacking..."
 
@@ -292,14 +296,6 @@ configure_freeform_display() {
   settings put system user_rotation 0 2>/dev/null
   print_status "$GREEN" "Auto-rotation disabled, rotation locked to portrait"
 
-  # Set portrait resolution explicitly
-  wm size 720x1280 2>/dev/null
-  print_status "$GREEN" "Display resolution set to 720x1280 HD (portrait)"
-
-  # Standard density for vsphone KVIP
-  wm density 240 2>/dev/null
-  print_status "$GREEN" "Display density set to 240dpi"
-
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
@@ -307,6 +303,24 @@ configure_freeform_display() {
   # Force apps to be resizable (ignore app-requested landscape orientation)
   settings put global development_force_resizable_activities 1 2>/dev/null
   print_status "$GREEN" "Force resizable activities enabled"
+}
+
+# Set display size dynamically based on instance count
+# Must be called AFTER detect_roblox_users sets USER_COUNT
+configure_display_size() {
+  DISPLAY_W=$INSTANCE_W
+  DISPLAY_H=$((INSTANCE_H * USER_COUNT))
+
+  wm size ${DISPLAY_W}x${DISPLAY_H} 2>/dev/null
+  print_status "$GREEN" "Display resolution set to ${DISPLAY_W}x${DISPLAY_H} (${USER_COUNT} x ${INSTANCE_W}x${INSTANCE_H})"
+
+  # Scale density proportionally (240 was for 720w, so 360w = 120dpi)
+  wm density 120 2>/dev/null
+  print_status "$GREEN" "Display density set to 120dpi"
+
+  # Save for watchdog
+  echo "$DISPLAY_W" > /data/local/tmp/roblox_display_w.txt
+  echo "$DISPLAY_H" > /data/local/tmp/roblox_display_h.txt
 }
 
 # ============================================================
@@ -421,9 +435,9 @@ duplicate_via_vscloner() {
 ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
 
-# Display dimensions (must match configure_freeform_display)
-DISPLAY_W=720
-DISPLAY_H=1280
+# Display dimensions — set dynamically by configure_display_size()
+DISPLAY_W=360
+DISPLAY_H=640
 
 # ============================================================
 # Detect All Users with Roblox Installed
@@ -496,6 +510,9 @@ launch_roblox_instances() {
     return 1
   fi
 
+  # Now that we know USER_COUNT, set the display size
+  configure_display_size
+
   print_status "$CYAN" "Launching and positioning Roblox instances..."
 
   if [ -n "$PLACE_ID" ]; then
@@ -505,18 +522,12 @@ launch_roblox_instances() {
     fi
   fi
 
-  ROW_H=$((DISPLAY_H / USER_COUNT))
   instance=0
 
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((ROW_H * (instance - 1)))
-    BOT=$((ROW_H * instance))
-
-    # Last instance takes remaining pixels to avoid gaps
-    if [ "$instance" -eq "$USER_COUNT" ]; then
-      BOT=$DISPLAY_H
-    fi
+    TOP=$((INSTANCE_H * (instance - 1)))
+    BOT=$((INSTANCE_H * instance))
 
     print_status "$CYAN" "  Launching instance $instance (user $uid)..."
     launch_cmd=$(build_launch_cmd "$uid")
@@ -526,7 +537,7 @@ launch_roblox_instances() {
     task_id=$(get_task_id "$uid")
     if [ -n "$task_id" ]; then
       am task resize "$task_id" 0 "$TOP" "$DISPLAY_W" "$BOT" 2>/dev/null
-      print_status "$GREEN" "  Instance $instance positioned: 0,$TOP -> ${DISPLAY_W},$BOT"
+      print_status "$GREEN" "  Instance $instance positioned: 0,$TOP -> ${DISPLAY_W},$BOT (${INSTANCE_W}x${INSTANCE_H})"
     else
       print_status "$YELLOW" "  Could not find task for instance $instance"
     fi
@@ -587,13 +598,12 @@ launch_summary() {
   print_status "$CYAN" "Expected Memory Budget:"
   print_status "$CYAN" "  System overhead:    ~800MB"
   print_status "$CYAN" "  ZRAM expansion:     +700-900MB effective"
-  print_status "$CYAN" "  Roblox x3:          ~1.2GB (300-400MB each)"
+  print_status "$CYAN" "  Roblox x${USER_COUNT}:          ~$((USER_COUNT * 350))MB (300-400MB each)"
   print_status "$CYAN" "  GPU/compositor:     ~400MB"
-  print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
   print_status "$CYAN" ""
   print_status "$CYAN" "Freeform Layout (portrait):"
-  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H}"
-  print_status "$CYAN" "  Instances:  auto-detected from installed users"
+  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} (${USER_COUNT} instances)"
+  print_status "$CYAN" "  Per instance: ${INSTANCE_W}x${INSTANCE_H}"
   print_status "$CYAN" ""
   print_status "$CYAN" "To manually resize a window:"
   print_status "$CYAN" "  am stack list                              # find taskId"

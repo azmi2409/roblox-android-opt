@@ -9,8 +9,9 @@
 ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
 
-DISPLAY_W=720
-DISPLAY_H=1280
+# Per-instance ideal size
+INSTANCE_W=360
+INSTANCE_H=640
 
 CHECK_INTERVAL=15  # seconds between checks
 RESTART_DELAY=10   # seconds to wait after restarting before resize
@@ -129,8 +130,8 @@ restart_instance() {
 
   task_id=$(get_task_id "$user_id")
   if [ -n "$task_id" ]; then
-    am task resize "$task_id" 0 "$top" "$DISPLAY_W" "$bottom" 2>/dev/null
-    log_msg "Instance $instance_num repositioned: 0,$top -> ${DISPLAY_W},$bottom"
+    am task resize "$task_id" 0 "$top" "$INSTANCE_W" "$bottom" 2>/dev/null
+    log_msg "Instance $instance_num repositioned: 0,$top -> ${INSTANCE_W},$bottom"
   else
     log_msg "Instance $instance_num: could not find task after restart"
   fi
@@ -139,18 +140,12 @@ restart_instance() {
 # ============================================================
 # Main watchdog loop
 # ============================================================
-ROW_H=$((DISPLAY_H / USER_COUNT))
-
 while true; do
   instance=0
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((ROW_H * (instance - 1)))
-    BOT=$((ROW_H * instance))
-
-    if [ "$instance" -eq "$USER_COUNT" ]; then
-      BOT=$DISPLAY_H
-    fi
+    TOP=$((INSTANCE_H * (instance - 1)))
+    BOT=$((INSTANCE_H * instance))
 
     if ! is_running "$uid"; then
       restart_instance "$uid" "$TOP" "$BOT" "$instance"
