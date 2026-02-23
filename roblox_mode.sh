@@ -299,9 +299,8 @@ configure_freeform_display() {
   wm size ${DISPLAY_W}x${DISPLAY_H} 2>/dev/null
   print_status "$GREEN" "Display resolution set to ${DISPLAY_W}x${DISPLAY_H} (portrait)"
 
-  # Standard density for vsphone KVIP
-  wm density 240 2>/dev/null
-  print_status "$GREEN" "Display density set to 240dpi"
+  # Density will be set dynamically based on instance count
+  # (240dp per instance → density = 720px / sw_dp * 160)
 
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
@@ -309,6 +308,9 @@ configure_freeform_display() {
 
   # Force apps to be resizable (ignore app-requested orientation)
   settings put global development_force_resizable_activities 1 2>/dev/null
+  setprop persist.sys.force_resizable_activities true 2>/dev/null
+  # Also set via developer options flag
+  settings put global force_resizable_activities 1 2>/dev/null
   print_status "$GREEN" "Force resizable activities enabled"
 
   # Set device language to English
@@ -503,6 +505,17 @@ launch_roblox_instances() {
   fi
 
   print_status "$CYAN" "Launching and positioning Roblox instances..."
+
+  # Set smallest width dp: 240dp per instance
+  SW_DP=$((240 * USER_COUNT))
+  wm overscan reset 2>/dev/null
+  settings put global display_density_forced "" 2>/dev/null
+  wm size ${DISPLAY_W}x${DISPLAY_H} 2>/dev/null
+  # Calculate density to achieve target smallest-width-dp
+  # density = (shortest_side_px / sw_dp) * 160
+  CALC_DPI=$(( (DISPLAY_W * 160) / SW_DP ))
+  wm density "$CALC_DPI" 2>/dev/null
+  print_status "$GREEN" "  Smallest width: ${SW_DP}dp (density: ${CALC_DPI}dpi, ${USER_COUNT} instances)"
 
   if [ -n "$PLACE_ID" ]; then
     print_status "$CYAN" "  Game ID: $PLACE_ID"

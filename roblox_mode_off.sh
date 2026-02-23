@@ -134,6 +134,8 @@ restore_display() {
 
   # Restore resizable activities to default
   settings put global development_force_resizable_activities 0 2>/dev/null
+  setprop persist.sys.force_resizable_activities false 2>/dev/null
+  settings put global force_resizable_activities 0 2>/dev/null
   print_status "$GREEN" "  Force resizable activities disabled"
 }
 
