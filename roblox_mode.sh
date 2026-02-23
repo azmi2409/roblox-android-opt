@@ -310,6 +310,13 @@ configure_freeform_display() {
   # Force apps to be resizable (ignore app-requested orientation)
   settings put global development_force_resizable_activities 1 2>/dev/null
   print_status "$GREEN" "Force resizable activities enabled"
+
+  # Set device language to English
+  setprop persist.sys.language en 2>/dev/null
+  setprop persist.sys.country US 2>/dev/null
+  setprop persist.sys.locale en-US 2>/dev/null
+  settings put system system_locales en-US 2>/dev/null
+  print_status "$GREEN" "Device language set to English (en-US)"
 }
 
 # ============================================================
