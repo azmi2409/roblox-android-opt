@@ -218,14 +218,14 @@ configure_freeform_display() {
   settings put system user_rotation 1 2>/dev/null
   print_status "$GREEN" "Orientation locked to landscape"
 
-  # Set lower resolution to save GPU memory (720p landscape)
-  # Each Roblox instance gets ~640x240 in a 3-row vertical stack
-  wm size 1280x720 2>/dev/null
-  print_status "$GREEN" "Display resolution set to 1280x720"
+  # Use native 1080p in landscape orientation
+  # Each Roblox instance gets 1920x360 in a 3-row vertical stack
+  wm size 1920x1080 2>/dev/null
+  print_status "$GREEN" "Display resolution set to 1920x1080 (landscape)"
 
-  # Adjust density to match reduced resolution
-  wm density 240 2>/dev/null
-  print_status "$GREEN" "Display density set to 240dpi"
+  # Keep standard density for vsphone KVIP
+  wm density 320 2>/dev/null
+  print_status "$GREEN" "Display density set to 320dpi"
 
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
@@ -259,28 +259,121 @@ disable_browsers() {
 }
 
 # ============================================================
+# Roblox Package Configuration
+# ============================================================
+# Main Roblox package + cloned instances
+# Modify these if your clones use different package names
+ROBLOX_PKG_1="com.roblox.client"
+ROBLOX_PKG_2="com.roblox.client"  # Clone 1 (Island/Shelter/work profile)
+ROBLOX_PKG_3="com.roblox.client"  # Clone 2 (Island/Shelter/work profile)
+
+# Display dimensions (must match configure_freeform_display)
+DISPLAY_W=1920
+DISPLAY_H=1080
+
+# ============================================================
+# Get Task ID for a Package
+# ============================================================
+get_task_id() {
+  pkg="$1"
+  # Get the most recent task ID for this package
+  am stack list 2>/dev/null | grep "$pkg" | head -1 | sed 's/.*taskId=\([0-9]*\).*/\1/'
+}
+
+# ============================================================
+# Launch and Position Roblox Instances
+# ============================================================
+launch_roblox_instances() {
+  print_status "$CYAN" "Launching and positioning Roblox instances..."
+
+  ROW_H=$((DISPLAY_H / 3))  # 240px per row
+
+  # --- Instance 1: top row (0,0 -> 1280,240) ---
+  print_status "$CYAN" "  Launching instance 1 ($ROBLOX_PKG_1)..."
+  am start --windowingMode 5 -n "$ROBLOX_PKG_1/com.roblox.client.startup.ActivitySplash" 2>/dev/null
+  sleep 8
+
+  TASK1=$(get_task_id "$ROBLOX_PKG_1")
+  if [ -n "$TASK1" ]; then
+    am task resize "$TASK1" 0 0 "$DISPLAY_W" "$ROW_H" 2>/dev/null
+    print_status "$GREEN" "  Instance 1 positioned: 0,0 -> ${DISPLAY_W},${ROW_H}"
+  else
+    print_status "$YELLOW" "  Could not find task for instance 1"
+  fi
+
+  # --- Instance 2: middle row (0,240 -> 1280,480) ---
+  TOP2=$ROW_H
+  BOT2=$((ROW_H * 2))
+
+  if [ "$ROBLOX_PKG_2" != "$ROBLOX_PKG_1" ]; then
+    print_status "$CYAN" "  Launching instance 2 ($ROBLOX_PKG_2)..."
+    am start --windowingMode 5 -n "$ROBLOX_PKG_2/com.roblox.client.startup.ActivitySplash" 2>/dev/null
+    sleep 8
+
+    TASK2=$(get_task_id "$ROBLOX_PKG_2")
+    if [ -n "$TASK2" ]; then
+      am task resize "$TASK2" 0 "$TOP2" "$DISPLAY_W" "$BOT2" 2>/dev/null
+      print_status "$GREEN" "  Instance 2 positioned: 0,${TOP2} -> ${DISPLAY_W},${BOT2}"
+    else
+      print_status "$YELLOW" "  Could not find task for instance 2"
+    fi
+  else
+    print_status "$YELLOW" "  Instance 2 uses same package as instance 1"
+    print_status "$YELLOW" "  Launch your clone app manually, then run:"
+    print_status "$YELLOW" "    am task resize <taskId> 0 $TOP2 $DISPLAY_W $BOT2"
+  fi
+
+  # --- Instance 3: bottom row (0,480 -> 1280,720) ---
+  TOP3=$((ROW_H * 2))
+  BOT3=$DISPLAY_H
+
+  if [ "$ROBLOX_PKG_3" != "$ROBLOX_PKG_1" ] && [ "$ROBLOX_PKG_3" != "$ROBLOX_PKG_2" ]; then
+    print_status "$CYAN" "  Launching instance 3 ($ROBLOX_PKG_3)..."
+    am start --windowingMode 5 -n "$ROBLOX_PKG_3/com.roblox.client.startup.ActivitySplash" 2>/dev/null
+    sleep 8
+
+    TASK3=$(get_task_id "$ROBLOX_PKG_3")
+    if [ -n "$TASK3" ]; then
+      am task resize "$TASK3" 0 "$TOP3" "$DISPLAY_W" "$BOT3" 2>/dev/null
+      print_status "$GREEN" "  Instance 3 positioned: 0,${TOP3} -> ${DISPLAY_W},${BOT3}"
+    else
+      print_status "$YELLOW" "  Could not find task for instance 3"
+    fi
+  else
+    print_status "$YELLOW" "  Instance 3 uses same package as another instance"
+    print_status "$YELLOW" "  Launch your clone app manually, then run:"
+    print_status "$YELLOW" "    am task resize <taskId> 0 $TOP3 $DISPLAY_W $BOT3"
+  fi
+}
+
+# ============================================================
 # Memory Trim Signal
 # ============================================================
 trim_memory() {
-  ROBLOX_PIDS=$(pidof com.roblox.client 2>/dev/null)
+  # Find all Roblox PIDs across all packages
+  ALL_PIDS=""
+  for pkg in "$ROBLOX_PKG_1" "$ROBLOX_PKG_2" "$ROBLOX_PKG_3"; do
+    PIDS=$(pidof "$pkg" 2>/dev/null)
+    if [ -n "$PIDS" ]; then
+      ALL_PIDS="$ALL_PIDS $PIDS"
+    fi
+  done
 
-  if [ -z "$ROBLOX_PIDS" ]; then
+  if [ -z "$ALL_PIDS" ]; then
     print_status "$YELLOW" "No Roblox instances running, skipping trim."
     return
   fi
 
-  for pid in $ROBLOX_PIDS; do
+  for pid in $ALL_PIDS; do
     am send-trim-memory "$pid" RUNNING_CRITICAL 2>/dev/null
   done
   print_status "$GREEN" "Sent TRIM_MEMORY_RUNNING_CRITICAL to Roblox instances"
 }
 
 # ============================================================
-# Staggered Launch Guidance
+# Launch Summary
 # ============================================================
-launch_guidance() {
-  print_status "$CYAN" "=== Launch Guide ==="
-  print_status "$CYAN" "Wait ~10 seconds between launching each Roblox instance."
+launch_summary() {
   print_status "$CYAN" ""
   print_status "$CYAN" "Expected Memory Budget:"
   print_status "$CYAN" "  System overhead:    ~800MB"
@@ -290,9 +383,12 @@ launch_guidance() {
   print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
   print_status "$CYAN" ""
   print_status "$CYAN" "Freeform Layout (3 vertical rows, landscape):"
-  print_status "$CYAN" "  Display:    1280x720 @ 240dpi"
-  print_status "$CYAN" "  Per window: ~1280x240 each"
-  print_status "$CYAN" "  Stack them top-to-bottom, no overlap"
+  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} @ 320dpi"
+  print_status "$CYAN" "  Per window: ${DISPLAY_W}x$((DISPLAY_H / 3)) each"
+  print_status "$CYAN" ""
+  print_status "$CYAN" "To manually resize a window:"
+  print_status "$CYAN" "  am stack list                              # find taskId"
+  print_status "$CYAN" "  am task resize <taskId> left top right bot # resize it"
 }
 
 # ============================================================
@@ -302,45 +398,48 @@ printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE: ON ==="
 printf "\n"
 
-print_status "$CYAN" "[1/13] Checking root access..."
+print_status "$CYAN" "[1/14] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/13] Cleaning background processes..."
+print_status "$CYAN" "[2/14] Cleaning background processes..."
 cleanup_background
 
-print_status "$CYAN" "[3/13] Dropping filesystem caches..."
+print_status "$CYAN" "[3/14] Dropping filesystem caches..."
 drop_caches
 
-print_status "$CYAN" "[4/13] Configuring ZRAM..."
+print_status "$CYAN" "[4/14] Configuring ZRAM..."
 configure_zram
 
-print_status "$CYAN" "[5/13] Tuning swappiness..."
+print_status "$CYAN" "[5/14] Tuning swappiness..."
 tune_swappiness
 
-print_status "$CYAN" "[6/13] Tuning VM kernel parameters..."
+print_status "$CYAN" "[6/14] Tuning VM kernel parameters..."
 tune_vm_kernel
 
-print_status "$CYAN" "[7/13] Disabling animations..."
+print_status "$CYAN" "[7/14] Disabling animations..."
 disable_animations
 
-print_status "$CYAN" "[8/13] Tuning Low Memory Killer..."
+print_status "$CYAN" "[8/14] Tuning Low Memory Killer..."
 tune_lmk
 
-print_status "$CYAN" "[9/13] Configuring Dalvik heap limits..."
+print_status "$CYAN" "[9/14] Configuring Dalvik heap limits..."
 tune_dalvik_heap
 
-print_status "$CYAN" "[10/13] Tuning graphics settings..."
+print_status "$CYAN" "[10/14] Tuning graphics settings..."
 tune_graphics
 
-print_status "$CYAN" "[11/13] Configuring freeform display..."
+print_status "$CYAN" "[11/14] Configuring freeform display..."
 configure_freeform_display
 
-print_status "$CYAN" "[12/13] Disabling browsers..."
+print_status "$CYAN" "[12/14] Disabling browsers..."
 disable_browsers
 
-print_status "$CYAN" "[13/13] Trimming memory and preparing launch guide..."
+print_status "$CYAN" "[13/14] Launching and positioning Roblox instances..."
+launch_roblox_instances
+
+print_status "$CYAN" "[14/14] Trimming memory..."
 trim_memory
-launch_guidance
+launch_summary
 
 printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE READY ==="
