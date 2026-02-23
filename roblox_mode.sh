@@ -294,6 +294,11 @@ configure_freeform_display() {
   # Lock to landscape: disable auto-rotate and force rotation=1 (landscape)
   settings put system accelerometer_rotation 0 2>/dev/null
   settings put system user_rotation 1 2>/dev/null
+  # Force the system to respect user_rotation setting
+  wm set-fix-to-user-rotation enabled 2>/dev/null
+  # Additional enforcement via content provider
+  content insert --uri content://settings/system --bind name:s:accelerometer_rotation --bind value:i:0 2>/dev/null
+  content insert --uri content://settings/system --bind name:s:user_rotation --bind value:i:1 2>/dev/null
   print_status "$GREEN" "Auto-rotation disabled, rotation locked to landscape"
 
   # Enable freeform window mode
