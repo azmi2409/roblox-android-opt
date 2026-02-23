@@ -218,18 +218,13 @@ configure_freeform_display() {
   settings put system user_rotation 1 2>/dev/null
   print_status "$GREEN" "Orientation locked to landscape"
 
-  # Use native 1080p in landscape orientation
-  # Each Roblox instance gets 1920x360 in a 3-row vertical stack
-  wm size 1920x1080 2>/dev/null
-  print_status "$GREEN" "Display resolution set to 1920x1080 (landscape)"
-
-  # Keep standard density for vsphone KVIP
-  wm density 320 2>/dev/null
-  print_status "$GREEN" "Display density set to 320dpi"
-
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
+
+  # Using native resolution (vsphone KVIP: 1920x1080)
+  # wm size command is NOT used — it breaks resolution on some devices
+  print_status "$GREEN" "Using native display resolution"
 }
 
 # ============================================================
@@ -383,7 +378,7 @@ launch_summary() {
   print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
   print_status "$CYAN" ""
   print_status "$CYAN" "Freeform Layout (3 vertical rows, landscape):"
-  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} @ 320dpi"
+  print_status "$CYAN" "  Display:    ${DISPLAY_W}x${DISPLAY_H} (native)"
   print_status "$CYAN" "  Per window: ${DISPLAY_W}x$((DISPLAY_H / 3)) each"
   print_status "$CYAN" ""
   print_status "$CYAN" "To manually resize a window:"

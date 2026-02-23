@@ -111,12 +111,7 @@ restore_display() {
   settings put system accelerometer_rotation 1 2>/dev/null
   print_status "$GREEN" "  Auto-rotation restored"
 
-  # Reset resolution and density to device defaults
-  wm size reset 2>/dev/null
-  print_status "$GREEN" "  Display resolution restored to default"
-
-  wm density reset 2>/dev/null
-  print_status "$GREEN" "  Display density restored to default"
+  # Resolution/density were not changed, no reset needed
 }
 
 # ============================================================
