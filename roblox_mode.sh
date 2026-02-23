@@ -333,7 +333,7 @@ disable_browsers() {
 # ============================================================
 # Roblox APK Download URL
 # ============================================================
-ROBLOX_APK_URL="https://delta.filenetwork.vip/file/Delta-2.708.880.apk"
+ROBLOX_APK_URL="https://deltaexecutor.filesadda.com/Delta-v2.709.apk"
 ROBLOX_APK_PATH="/data/local/tmp/roblox.apk"
 VSCLONER_PKG="com.vphone.clone"
 
