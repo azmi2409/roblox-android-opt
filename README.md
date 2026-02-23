@@ -52,7 +52,7 @@ Shell scripts that optimize a rooted Android device for running multiple simulta
 pkg install git
 git clone https://github.com/azmi2409/roblox-android-opt.git
 cd roblox-android-opt
-su -c 'sh install.sh'
+su -c "sh $(pwd)/install.sh"
 ```
 
 This copies scripts to `/data/local/tmp/roblox-opt/` and creates `roblox-on` / `roblox-off` commands. The installer tries `/system/bin` first, falls back to a Magisk module, or `/data/local/tmp`.
@@ -60,7 +60,7 @@ This copies scripts to `/data/local/tmp/roblox-opt/` and creates `roblox-on` / `
 ### One-liner Install (no git needed)
 
 ```bash
-mkdir -p /data/local/tmp/roblox-setup && cd /data/local/tmp/roblox-setup && for f in roblox_mode.sh roblox_mode_off.sh roblox_watchdog.sh install.sh; do curl -sLO "https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/$f"; done && su -c 'sh install.sh'
+mkdir -p /data/local/tmp/roblox-setup && cd /data/local/tmp/roblox-setup && for f in roblox_mode.sh roblox_mode_off.sh roblox_watchdog.sh install.sh; do curl -sLO "https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/$f"; done && su -c 'sh /data/local/tmp/roblox-setup/install.sh'
 ```
 
 ## Usage

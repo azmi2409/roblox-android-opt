@@ -33,7 +33,6 @@ fi
 # Install location
 # ============================================================
 INSTALL_DIR="/data/local/tmp/roblox-opt"
-BIN_DIR="/system/bin"
 
 msg "$CYAN" "=== Roblox Optimizer Installer ==="
 printf "\n"
@@ -55,58 +54,97 @@ for f in roblox_mode.sh roblox_mode_off.sh roblox_watchdog.sh; do
 done
 
 # ============================================================
-# Create wrapper commands
+# Create wrapper commands in install dir
 # ============================================================
 msg "$CYAN" "[2/4] Creating commands..."
 
-# Try /system/bin first (needs remount), fallback to /data/adb
-MOUNTED=0
-mount -o rw,remount /system 2>/dev/null && MOUNTED=1
+# Always create wrappers in INSTALL_DIR first
+cat > "$INSTALL_DIR/roblox-on" << 'WRAPPER_ON'
+#!/system/bin/sh
+exec sh /data/local/tmp/roblox-opt/roblox_mode.sh "$@"
+WRAPPER_ON
+chmod 755 "$INSTALL_DIR/roblox-on"
 
-if [ "$MOUNTED" -eq 0 ]; then
-  # Try magisk's bin path
-  if [ -d "/data/adb/modules" ]; then
-    BIN_DIR="/data/adb/modules/roblox-opt/system/bin"
-    mkdir -p "$BIN_DIR"
-    # Create module descriptor for Magisk
-    MODULE_DIR="/data/adb/modules/roblox-opt"
-    echo "id=roblox-opt" > "$MODULE_DIR/module.prop"
-    echo "name=Roblox Optimizer" >> "$MODULE_DIR/module.prop"
-    echo "version=1.0" >> "$MODULE_DIR/module.prop"
-    echo "versionCode=1" >> "$MODULE_DIR/module.prop"
-    echo "author=roblox-android-opt" >> "$MODULE_DIR/module.prop"
-    echo "description=roblox-on and roblox-off commands" >> "$MODULE_DIR/module.prop"
-    msg "$CYAN" "  Using Magisk module path"
-  else
-    BIN_DIR="/data/local/tmp"
-    msg "$YELLOW" "  /system not writable, using $BIN_DIR"
-    msg "$YELLOW" "  You'll need to add /data/local/tmp to PATH"
+cat > "$INSTALL_DIR/roblox-off" << 'WRAPPER_OFF'
+#!/system/bin/sh
+exec sh /data/local/tmp/roblox-opt/roblox_mode_off.sh "$@"
+WRAPPER_OFF
+chmod 755 "$INSTALL_DIR/roblox-off"
+
+# Try to place commands in a directory that's already in PATH
+BIN_DIR=""
+MOUNTED=0
+
+# Option 1: /system/bin (most reliable, needs remount)
+mount -o rw,remount /system 2>/dev/null && MOUNTED=1
+if [ "$MOUNTED" -eq 1 ]; then
+  BIN_DIR="/system/bin"
+  msg "$CYAN" "  Using /system/bin"
+fi
+
+# Option 2: /system/xbin (often writable on cloud phones)
+if [ -z "$BIN_DIR" ] && [ -d "/system/xbin" ]; then
+  mount -o rw,remount /system 2>/dev/null && MOUNTED=1
+  if [ "$MOUNTED" -eq 1 ]; then
+    BIN_DIR="/system/xbin"
+    msg "$CYAN" "  Using /system/xbin"
   fi
 fi
 
-# roblox-on command
-cat > "$BIN_DIR/roblox-on" << 'WRAPPER_ON'
-#!/system/bin/sh
-# roblox-on - Start Roblox optimization mode
-# Usage: roblox-on [PLACE_ID] [PRIVATE_SERVER_CODE]
-exec sh /data/local/tmp/roblox-opt/roblox_mode.sh "$@"
-WRAPPER_ON
-chmod 755 "$BIN_DIR/roblox-on"
-msg "$GREEN" "  Created: roblox-on"
-
-# roblox-off command
-cat > "$BIN_DIR/roblox-off" << 'WRAPPER_OFF'
-#!/system/bin/sh
-# roblox-off - Restore normal settings
-exec sh /data/local/tmp/roblox-opt/roblox_mode_off.sh "$@"
-WRAPPER_OFF
-chmod 755 "$BIN_DIR/roblox-off"
-msg "$GREEN" "  Created: roblox-off"
-
-# Remount /system read-only if we mounted it
-if [ "$MOUNTED" -eq 1 ]; then
-  mount -o ro,remount /system 2>/dev/null
+# Option 3: Magisk module (creates /system/bin overlay)
+if [ -z "$BIN_DIR" ] && [ -d "/data/adb/modules" ]; then
+  MODULE_DIR="/data/adb/modules/roblox-opt"
+  BIN_DIR="$MODULE_DIR/system/bin"
+  mkdir -p "$BIN_DIR"
+  echo "id=roblox-opt" > "$MODULE_DIR/module.prop"
+  echo "name=Roblox Optimizer" >> "$MODULE_DIR/module.prop"
+  echo "version=1.0" >> "$MODULE_DIR/module.prop"
+  echo "versionCode=1" >> "$MODULE_DIR/module.prop"
+  echo "author=roblox-android-opt" >> "$MODULE_DIR/module.prop"
+  echo "description=roblox-on and roblox-off commands" >> "$MODULE_DIR/module.prop"
+  msg "$CYAN" "  Using Magisk module path (reboot needed)"
 fi
+
+# Option 4: /sbin (available on some rooted devices)
+if [ -z "$BIN_DIR" ] && [ -d "/sbin" ] && [ -w "/sbin" ]; then
+  BIN_DIR="/sbin"
+  msg "$CYAN" "  Using /sbin"
+fi
+
+# Copy or symlink wrappers to BIN_DIR if we found one
+if [ -n "$BIN_DIR" ] && [ "$BIN_DIR" != "$INSTALL_DIR" ]; then
+  cp "$INSTALL_DIR/roblox-on" "$BIN_DIR/roblox-on"
+  cp "$INSTALL_DIR/roblox-off" "$BIN_DIR/roblox-off"
+  chmod 755 "$BIN_DIR/roblox-on" "$BIN_DIR/roblox-off"
+  msg "$GREEN" "  Commands installed to $BIN_DIR"
+
+  if [ "$MOUNTED" -eq 1 ]; then
+    mount -o ro,remount /system 2>/dev/null
+  fi
+else
+  BIN_DIR="$INSTALL_DIR"
+  msg "$YELLOW" "  No system PATH dir writable"
+  msg "$CYAN" "  Commands installed to $INSTALL_DIR"
+fi
+
+# Ensure /data/local/tmp/roblox-opt is in PATH for current and future shells
+# Add to multiple profile files for broad compatibility
+for profile in /etc/profile /system/etc/mkshrc /data/local/tmp/.mkshrc; do
+  if [ -f "$profile" ] || [ "$profile" = "/data/local/tmp/.mkshrc" ]; then
+    if ! grep -q "roblox-opt" "$profile" 2>/dev/null; then
+      mount -o rw,remount /system 2>/dev/null
+      printf '\nexport PATH="$PATH:/data/local/tmp/roblox-opt"\n' >> "$profile" 2>/dev/null
+      mount -o ro,remount /system 2>/dev/null
+    fi
+  fi
+done
+
+# Also create direct aliases in /data/local/tmp so su -c finds them
+ln -sf "$INSTALL_DIR/roblox-on" /data/local/tmp/roblox-on 2>/dev/null
+ln -sf "$INSTALL_DIR/roblox-off" /data/local/tmp/roblox-off 2>/dev/null
+
+msg "$GREEN" "  Created: roblox-on"
+msg "$GREEN" "  Created: roblox-off"
 
 # ============================================================
 # Install Termux shortcuts
@@ -141,8 +179,9 @@ fi
 msg "$CYAN" "[4/4] Verifying installation..."
 
 OK=1
+# Check if commands are accessible
 for cmd in roblox-on roblox-off; do
-  if [ -f "$BIN_DIR/$cmd" ]; then
+  if [ -f "$BIN_DIR/$cmd" ] || [ -f "$INSTALL_DIR/$cmd" ]; then
     msg "$GREEN" "  $cmd -> OK"
   else
     msg "$RED" "  $cmd -> MISSING"
@@ -155,14 +194,26 @@ if [ "$OK" -eq 1 ]; then
   msg "$GREEN" "=== Installation complete ==="
   printf "\n"
   msg "$CYAN" "Usage:"
-  msg "$CYAN" "  su -c 'roblox-on'                          # optimize + launch"
-  msg "$CYAN" "  su -c 'roblox-on 123456789'                # join a game"
-  msg "$CYAN" "  su -c 'roblox-on 123456789 servercode'     # join private server"
-  msg "$CYAN" "  su -c 'roblox-off'                         # restore everything"
+  if [ "$BIN_DIR" = "$INSTALL_DIR" ]; then
+    msg "$CYAN" "  su -c '/data/local/tmp/roblox-opt/roblox-on'                # optimize + launch"
+    msg "$CYAN" "  su -c '/data/local/tmp/roblox-opt/roblox-on 123456789'      # join a game"
+    msg "$CYAN" "  su -c '/data/local/tmp/roblox-opt/roblox-off'               # restore everything"
+    printf "\n"
+    msg "$CYAN" "Or add to PATH:"
+    msg "$CYAN" "  export PATH=\"\$PATH:/data/local/tmp/roblox-opt\""
+    msg "$CYAN" "Then use: su -c 'roblox-on'"
+  else
+    msg "$CYAN" "  su -c 'roblox-on'                          # optimize + launch"
+    msg "$CYAN" "  su -c 'roblox-on 123456789'                # join a game"
+    msg "$CYAN" "  su -c 'roblox-on 123456789 servercode'     # join private server"
+    msg "$CYAN" "  su -c 'roblox-off'                         # restore everything"
+  fi
   printf "\n"
   msg "$CYAN" "Uninstall:"
   msg "$CYAN" "  su -c 'rm -rf /data/local/tmp/roblox-opt'"
-  msg "$CYAN" "  su -c 'rm $BIN_DIR/roblox-on $BIN_DIR/roblox-off'"
+  if [ "$BIN_DIR" != "$INSTALL_DIR" ]; then
+    msg "$CYAN" "  su -c 'rm $BIN_DIR/roblox-on $BIN_DIR/roblox-off'"
+  fi
 else
   msg "$RED" "=== Installation had errors ==="
   msg "$YELLOW" "You can still run scripts directly:"
