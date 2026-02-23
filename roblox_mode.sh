@@ -14,7 +14,7 @@ NC='\033[0m'
 print_status() {
   color="$1"
   shift
-  echo -e "${color}$*${NC}"
+  printf "%b%s%b\n" "$color" "$*" "$NC"
 }
 
 # ============================================================
@@ -153,6 +153,31 @@ tune_graphics() {
 }
 
 # ============================================================
+# Freeform Display Configuration
+# ============================================================
+configure_freeform_display() {
+  print_status "$CYAN" "Configuring display for freeform stacking..."
+
+  # Force landscape orientation
+  settings put system accelerometer_rotation 0 2>/dev/null
+  settings put system user_rotation 1 2>/dev/null
+  print_status "$GREEN" "Orientation locked to landscape"
+
+  # Set lower resolution to save GPU memory (720p landscape)
+  # Each Roblox instance gets ~640x240 in a 3-row vertical stack
+  wm size 1280x720 2>/dev/null
+  print_status "$GREEN" "Display resolution set to 1280x720"
+
+  # Adjust density to match reduced resolution
+  wm density 240 2>/dev/null
+  print_status "$GREEN" "Display density set to 240dpi"
+
+  # Enable freeform window mode
+  settings put global enable_freeform_support 1 2>/dev/null
+  print_status "$GREEN" "Freeform window mode enabled"
+}
+
+# ============================================================
 # Browser Disabling
 # ============================================================
 BROWSER_PACKAGES="
@@ -208,45 +233,53 @@ launch_guidance() {
   print_status "$CYAN" "  Roblox x3:          ~1.2GB (300-400MB each)"
   print_status "$CYAN" "  GPU/compositor:     ~400MB"
   print_status "$CYAN" "  Estimated free RAM: ~1.3-1.6GB at idle"
+  print_status "$CYAN" ""
+  print_status "$CYAN" "Freeform Layout (3 vertical rows, landscape):"
+  print_status "$CYAN" "  Display:    1280x720 @ 240dpi"
+  print_status "$CYAN" "  Per window: ~1280x240 each"
+  print_status "$CYAN" "  Stack them top-to-bottom, no overlap"
 }
 
 # ============================================================
 # Main Execution
 # ============================================================
-echo ""
+printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE: ON ==="
-echo ""
+printf "\n"
 
-print_status "$CYAN" "[1/10] Checking root access..."
+print_status "$CYAN" "[1/11] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/10] Cleaning background processes..."
+print_status "$CYAN" "[2/11] Cleaning background processes..."
 cleanup_background
 
-print_status "$CYAN" "[3/10] Dropping filesystem caches..."
+print_status "$CYAN" "[3/11] Dropping filesystem caches..."
 drop_caches
 
-print_status "$CYAN" "[4/10] Configuring ZRAM..."
+print_status "$CYAN" "[4/11] Configuring ZRAM..."
 configure_zram
 
-print_status "$CYAN" "[5/10] Tuning swappiness..."
+print_status "$CYAN" "[5/11] Tuning swappiness..."
 tune_swappiness
 
-print_status "$CYAN" "[6/10] Tuning Low Memory Killer..."
+print_status "$CYAN" "[6/11] Tuning Low Memory Killer..."
 tune_lmk
 
-print_status "$CYAN" "[7/10] Configuring Dalvik heap limits..."
+print_status "$CYAN" "[7/11] Configuring Dalvik heap limits..."
 tune_dalvik_heap
 
-print_status "$CYAN" "[8/10] Tuning graphics settings..."
+print_status "$CYAN" "[8/11] Tuning graphics settings..."
 tune_graphics
 
-print_status "$CYAN" "[9/10] Disabling browsers..."
+print_status "$CYAN" "[9/11] Configuring freeform display..."
+configure_freeform_display
+
+print_status "$CYAN" "[10/11] Disabling browsers..."
 disable_browsers
 
-print_status "$CYAN" "[10/10] Trimming memory and preparing launch guide..."
+print_status "$CYAN" "[11/11] Trimming memory and preparing launch guide..."
 trim_memory
 launch_guidance
 
-echo ""
+printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE READY ==="

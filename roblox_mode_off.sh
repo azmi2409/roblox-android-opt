@@ -14,7 +14,7 @@ NC='\033[0m'
 print_status() {
   color="$1"
   shift
-  echo -e "${color}$*${NC}"
+  printf "%b%s%b\n" "$color" "$*" "$NC"
 }
 
 # ============================================================
@@ -79,6 +79,22 @@ restore_hw_overlays() {
 }
 
 # ============================================================
+# Display Restore
+# ============================================================
+restore_display() {
+  # Restore auto-rotation
+  settings put system accelerometer_rotation 1 2>/dev/null
+  print_status "$GREEN" "  Auto-rotation restored"
+
+  # Reset resolution and density to device defaults
+  wm size reset 2>/dev/null
+  print_status "$GREEN" "  Display resolution restored to default"
+
+  wm density reset 2>/dev/null
+  print_status "$GREEN" "  Display density restored to default"
+}
+
+# ============================================================
 # Browser Re-enabling
 # ============================================================
 BROWSER_PACKAGES="
@@ -105,30 +121,33 @@ enable_browsers() {
 # ============================================================
 # Main Execution
 # ============================================================
-echo ""
+printf "\n"
 print_status "$CYAN" "=== ROBLOX MODE: OFF ==="
-echo ""
+printf "\n"
 
-print_status "$CYAN" "[1/7] Checking root access..."
+print_status "$CYAN" "[1/8] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/7] Disabling ZRAM..."
+print_status "$CYAN" "[2/8] Disabling ZRAM..."
 disable_zram
 
-print_status "$CYAN" "[3/7] Restoring swappiness..."
+print_status "$CYAN" "[3/8] Restoring swappiness..."
 restore_swappiness
 
-print_status "$CYAN" "[4/7] Restoring LMK minfree..."
+print_status "$CYAN" "[4/8] Restoring LMK minfree..."
 restore_lmk
 
-print_status "$CYAN" "[5/7] Restoring Dalvik heap..."
+print_status "$CYAN" "[5/8] Restoring Dalvik heap..."
 restore_dalvik
 
-print_status "$CYAN" "[6/7] Restoring hardware overlays..."
+print_status "$CYAN" "[6/8] Restoring hardware overlays..."
 restore_hw_overlays
 
-print_status "$CYAN" "[7/7] Re-enabling browsers..."
+print_status "$CYAN" "[7/8] Restoring display settings..."
+restore_display
+
+print_status "$CYAN" "[8/8] Re-enabling browsers..."
 enable_browsers
 
-echo ""
+printf "\n"
 print_status "$GREEN" "=== All settings restored ==="
