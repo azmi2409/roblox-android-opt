@@ -6,7 +6,7 @@ Shell scripts that optimize a rooted Android device for running multiple simulta
 
 - 16-step memory and performance optimization
 - Auto-detect and launch Roblox across all VSCloner user profiles
-- Freeform windowing with auto-positioning (landscape, 360x640 per instance, side by side)
+- Freeform windowing with auto-positioning (portrait, 720x1280, 240dpi)
 - Deep link support for auto-joining games and private servers
 - Watchdog process that auto-restarts crashed instances
 - Auto-download and install Roblox APK if not present
@@ -22,7 +22,7 @@ Shell scripts that optimize a rooted Android device for running multiple simulta
 | Root | Required (Magisk, KernelSU, etc.) |
 | Device | vsphone KVIP (or similar) |
 | Cloner | VSCloner (multi-user profiles) |
-| Mode | Freeform windowing, landscape, 360x640 per instance side by side |
+| Mode | Freeform windowing, portrait |
 
 ## Memory Budget
 
@@ -119,7 +119,7 @@ su -c 'sh roblox_mode_off.sh'                          # restore
 | 9 | Tune Low Memory Killer thresholds |
 | 10 | Limit Dalvik heap (256m growth, 384m max) |
 | 11 | Disable hardware overlays |
-| 12 | Configure freeform display (landscape, 360*N x 640, 120dpi) |
+| 12 | Configure freeform display (720x1280 HD, portrait, 240dpi) |
 | 13 | Disable browsers (Chrome, Firefox, Edge, Opera, Brave, Samsung) |
 | 14 | Auto-detect users with Roblox, launch in freeform, position windows |
 | 15 | Send memory trim signal to all Roblox instances |

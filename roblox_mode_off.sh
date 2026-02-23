@@ -123,7 +123,6 @@ restore_display() {
   # Restore auto-rotation
   settings put system accelerometer_rotation 1 2>/dev/null
   settings put system user_rotation 0 2>/dev/null
-  wm set-fix-to-user-rotation disabled 2>/dev/null
   print_status "$GREEN" "  Auto-rotation restored"
 
   # Reset resolution and density to device defaults

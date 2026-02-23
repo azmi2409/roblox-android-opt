@@ -9,9 +9,8 @@
 ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
 
-# Per-instance ideal size (landscape per instance: wider than tall)
-INSTANCE_W=640
-INSTANCE_H=360
+DISPLAY_W=720
+DISPLAY_H=1280
 
 CHECK_INTERVAL=15  # seconds between checks
 RESTART_DELAY=10   # seconds to wait after restarting before resize
@@ -118,8 +117,8 @@ build_launch_cmd() {
 # ============================================================
 restart_instance() {
   user_id="$1"
-  left="$2"
-  right="$3"
+  top="$2"
+  bottom="$3"
   instance_num="$4"
 
   log_msg "Instance $instance_num (user $user_id) crashed - restarting..."
@@ -130,8 +129,8 @@ restart_instance() {
 
   task_id=$(get_task_id "$user_id")
   if [ -n "$task_id" ]; then
-    am task resize "$task_id" "$left" 0 "$right" "$INSTANCE_H" 2>/dev/null
-    log_msg "Instance $instance_num repositioned: $left,0 -> ${right},${INSTANCE_H}"
+    am task resize "$task_id" 0 "$top" "$DISPLAY_W" "$bottom" 2>/dev/null
+    log_msg "Instance $instance_num repositioned: 0,$top -> ${DISPLAY_W},$bottom"
   else
     log_msg "Instance $instance_num: could not find task after restart"
   fi
@@ -140,15 +139,21 @@ restart_instance() {
 # ============================================================
 # Main watchdog loop
 # ============================================================
+ROW_H=$((DISPLAY_H / USER_COUNT))
+
 while true; do
   instance=0
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    LEFT=$((INSTANCE_W * (instance - 1)))
-    RIGHT=$((INSTANCE_W * instance))
+    TOP=$((ROW_H * (instance - 1)))
+    BOT=$((ROW_H * instance))
+
+    if [ "$instance" -eq "$USER_COUNT" ]; then
+      BOT=$DISPLAY_H
+    fi
 
     if ! is_running "$uid"; then
-      restart_instance "$uid" "$LEFT" "$RIGHT" "$instance"
+      restart_instance "$uid" "$TOP" "$BOT" "$instance"
     fi
   done
 
