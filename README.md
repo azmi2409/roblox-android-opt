@@ -47,13 +47,13 @@ chmod +x roblox_mode.sh roblox_mode_off.sh
 **Optimize:**
 
 ```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode.sh | tsu -c sh
+curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode.sh -o /data/local/tmp/roblox_mode.sh && tsu sh /data/local/tmp/roblox_mode.sh
 ```
 
 **Restore:**
 
 ```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode_off.sh | tsu -c sh
+curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode_off.sh -o /data/local/tmp/roblox_mode_off.sh && tsu sh /data/local/tmp/roblox_mode_off.sh
 ```
 
 > Replace `azmi2409` with your actual GitHub username.
@@ -63,7 +63,7 @@ curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/robl
 ### Enable Roblox mode
 
 ```bash
-tsu -c sh roblox_mode.sh
+tsu sh roblox_mode.sh
 ```
 
 This runs all 10 optimization steps (see [What the scripts do](#what-the-scripts-do) below), then prints a launch guide. Wait ~10 seconds between launching each Roblox instance.
@@ -71,7 +71,7 @@ This runs all 10 optimization steps (see [What the scripts do](#what-the-scripts
 ### Restore normal settings
 
 ```bash
-tsu -c sh roblox_mode_off.sh
+tsu sh roblox_mode_off.sh
 ```
 
 Reverts every change made by the optimization script in 7 steps.
@@ -95,8 +95,8 @@ Reverts every change made by the optimization script in 7 steps.
 Add these to your `~/.bashrc` for quick access:
 
 ```bash
-alias roblox-on='tsu -c sh ~/roblox-android-opt/roblox_mode.sh'
-alias roblox-off='tsu -c sh ~/roblox-android-opt/roblox_mode_off.sh'
+alias roblox-on='tsu sh ~/roblox-android-opt/roblox_mode.sh'
+alias roblox-off='tsu sh ~/roblox-android-opt/roblox_mode_off.sh'
 ```
 
 Then reload:
@@ -143,7 +143,7 @@ Using LMKD fallback via setprop
 If a browser stays disabled after running the restore script:
 
 ```bash
-tsu -c pm enable --user 0 com.android.chrome
+tsu pm enable --user 0 com.android.chrome
 ```
 
 Replace `com.android.chrome` with the package name of the affected browser:
