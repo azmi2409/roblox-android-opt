@@ -284,9 +284,9 @@ tune_graphics() {
 # ============================================================
 # Freeform Display Configuration
 # ============================================================
-# Per-instance ideal size
-INSTANCE_W=360
-INSTANCE_H=640
+# Per-instance ideal size (landscape per instance: wider than tall)
+INSTANCE_W=640
+INSTANCE_H=360
 
 configure_freeform_display() {
   print_status "$CYAN" "Configuring display for freeform stacking..."
@@ -441,8 +441,8 @@ ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
 
 # Display dimensions — set dynamically by configure_display_size()
-DISPLAY_W=360
-DISPLAY_H=640
+DISPLAY_W=640
+DISPLAY_H=360
 
 # ============================================================
 # Detect All Users with Roblox Installed

@@ -9,9 +9,9 @@
 ROBLOX_PKG="com.roblox.client"
 ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
 
-# Per-instance ideal size
-INSTANCE_W=360
-INSTANCE_H=640
+# Per-instance ideal size (landscape per instance: wider than tall)
+INSTANCE_W=640
+INSTANCE_H=360
 
 CHECK_INTERVAL=15  # seconds between checks
 RESTART_DELAY=10   # seconds to wait after restarting before resize
