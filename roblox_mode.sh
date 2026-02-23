@@ -31,31 +31,50 @@ check_root() {
 # ============================================================
 # Background Process Cleanup
 # ============================================================
-PROTECTED_PROCESSES="system_server|surfaceflinger|servicemanager|com.termux"
+# Packages to force-stop for RAM (safe list, won't touch Termux or system)
+KILL_PACKAGES="
+com.google.android.gms
+com.google.android.gsf
+com.android.vending
+com.android.calendar
+com.android.email
+com.android.providers.calendar
+com.android.providers.contacts
+com.android.printspooler
+com.android.managedprovisioning
+com.android.cellbroadcastreceiver
+com.google.android.apps.maps
+com.google.android.youtube
+com.google.android.music
+com.google.android.videos
+com.google.android.apps.photos
+com.google.android.apps.docs
+com.google.android.apps.tachyon
+com.google.android.keep
+com.google.android.apps.messaging
+com.android.nfc
+com.android.bluetooth
+com.android.providers.media
+com.google.android.syncadapters.contacts
+com.google.android.backuptransport
+com.google.android.partnersetup
+"
 
 cleanup_background() {
   print_status "$CYAN" "Cleaning up background processes..."
-  before_count=$(ps -A 2>/dev/null | wc -l)
+  killed=0
 
-  # Kill all background apps via activity manager
-  am kill-all 2>/dev/null
-
-  # Selective pkill for non-protected processes
-  ps -A -o PID,NAME 2>/dev/null | while read pid name; do
-    # Skip header line and empty lines
-    [ -z "$pid" ] && continue
-    echo "$pid" | grep -q '[^0-9]' && continue
-
-    # Skip protected processes
-    echo "$name" | grep -qE "$PROTECTED_PROCESSES" && continue
-
-    kill -9 "$pid" 2>/dev/null
+  # Selectively force-stop known memory-hungry packages
+  # This is safe: only targets specific packages, never Termux or system
+  for pkg in $KILL_PACKAGES; do
+    # Check if package exists before trying to stop it
+    if pm list packages 2>/dev/null | grep -q "$pkg"; then
+      am force-stop "$pkg" 2>/dev/null
+      killed=$((killed + 1))
+    fi
   done
 
-  after_count=$(ps -A 2>/dev/null | wc -l)
-  killed=$((before_count - after_count))
-  [ "$killed" -lt 0 ] && killed=0
-  print_status "$GREEN" "Killed $killed background processes."
+  print_status "$GREEN" "Force-stopped $killed background packages."
 }
 
 # ============================================================
@@ -115,6 +134,41 @@ tune_swappiness() {
 }
 
 # ============================================================
+# VM Kernel Tuning
+# ============================================================
+tune_vm_kernel() {
+  print_status "$CYAN" "Tuning VM kernel parameters..."
+
+  # Reduce dirty page ratio — flush to disk sooner, free RAM faster
+  echo 10 > /proc/sys/vm/dirty_ratio 2>/dev/null
+  echo 5 > /proc/sys/vm/dirty_background_ratio 2>/dev/null
+
+  # Aggressively reclaim VFS cache (dentries/inodes)
+  echo 200 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null
+
+  # Reduce minimum free memory the kernel reserves
+  echo 8192 > /proc/sys/vm/min_free_kbytes 2>/dev/null
+
+  # Disable OOM dump tasks (saves CPU during OOM events)
+  echo 0 > /proc/sys/vm/oom_dump_tasks 2>/dev/null
+
+  print_status "$GREEN" "VM kernel parameters tuned"
+}
+
+# ============================================================
+# Disable Animations
+# ============================================================
+disable_animations() {
+  print_status "$CYAN" "Disabling animations..."
+
+  settings put global window_animation_scale 0.0 2>/dev/null
+  settings put global transition_animation_scale 0.0 2>/dev/null
+  settings put global animator_duration_scale 0.0 2>/dev/null
+
+  print_status "$GREEN" "All animations disabled"
+}
+
+# ============================================================
 # LMK Minfree Tuning
 # ============================================================
 tune_lmk() {
@@ -135,9 +189,13 @@ tune_lmk() {
 # ============================================================
 tune_dalvik_heap() {
   print_status "$CYAN" "Configuring Dalvik heap limits..."
+  setprop dalvik.vm.heapstartsize 8m
   setprop dalvik.vm.heapgrowthlimit 256m
   setprop dalvik.vm.heapsize 384m
-  print_status "$GREEN" "Dalvik heap: growthlimit=256m, heapsize=384m"
+  setprop dalvik.vm.heaptargetutilization 0.75
+  setprop dalvik.vm.heapminfree 512k
+  setprop dalvik.vm.heapmaxfree 8m
+  print_status "$GREEN" "Dalvik heap: start=8m, growth=256m, max=384m, util=75%"
 }
 
 # ============================================================
@@ -147,9 +205,6 @@ tune_graphics() {
   print_status "$CYAN" "Tuning graphics settings..."
   service call SurfaceFlinger 1008 i32 1 2>/dev/null
   print_status "$GREEN" "Hardware overlays disabled"
-
-  wm size reset 2>/dev/null
-  print_status "$GREEN" "Display set to native resolution"
 }
 
 # ============================================================
@@ -247,37 +302,43 @@ printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE: ON ==="
 printf "\n"
 
-print_status "$CYAN" "[1/11] Checking root access..."
+print_status "$CYAN" "[1/13] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/11] Cleaning background processes..."
+print_status "$CYAN" "[2/13] Cleaning background processes..."
 cleanup_background
 
-print_status "$CYAN" "[3/11] Dropping filesystem caches..."
+print_status "$CYAN" "[3/13] Dropping filesystem caches..."
 drop_caches
 
-print_status "$CYAN" "[4/11] Configuring ZRAM..."
+print_status "$CYAN" "[4/13] Configuring ZRAM..."
 configure_zram
 
-print_status "$CYAN" "[5/11] Tuning swappiness..."
+print_status "$CYAN" "[5/13] Tuning swappiness..."
 tune_swappiness
 
-print_status "$CYAN" "[6/11] Tuning Low Memory Killer..."
+print_status "$CYAN" "[6/13] Tuning VM kernel parameters..."
+tune_vm_kernel
+
+print_status "$CYAN" "[7/13] Disabling animations..."
+disable_animations
+
+print_status "$CYAN" "[8/13] Tuning Low Memory Killer..."
 tune_lmk
 
-print_status "$CYAN" "[7/11] Configuring Dalvik heap limits..."
+print_status "$CYAN" "[9/13] Configuring Dalvik heap limits..."
 tune_dalvik_heap
 
-print_status "$CYAN" "[8/11] Tuning graphics settings..."
+print_status "$CYAN" "[10/13] Tuning graphics settings..."
 tune_graphics
 
-print_status "$CYAN" "[9/11] Configuring freeform display..."
+print_status "$CYAN" "[11/13] Configuring freeform display..."
 configure_freeform_display
 
-print_status "$CYAN" "[10/11] Disabling browsers..."
+print_status "$CYAN" "[12/13] Disabling browsers..."
 disable_browsers
 
-print_status "$CYAN" "[11/11] Trimming memory and preparing launch guide..."
+print_status "$CYAN" "[13/13] Trimming memory and preparing launch guide..."
 trim_memory
 launch_guidance
 

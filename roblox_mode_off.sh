@@ -49,6 +49,27 @@ restore_swappiness() {
 }
 
 # ============================================================
+# VM Kernel Restore
+# ============================================================
+restore_vm_kernel() {
+  echo 20 > /proc/sys/vm/dirty_ratio 2>/dev/null
+  echo 5 > /proc/sys/vm/dirty_background_ratio 2>/dev/null
+  echo 100 > /proc/sys/vm/vfs_cache_pressure 2>/dev/null
+  echo 11584 > /proc/sys/vm/min_free_kbytes 2>/dev/null
+  print_status "$GREEN" "  VM kernel parameters restored to defaults"
+}
+
+# ============================================================
+# Animation Restore
+# ============================================================
+restore_animations() {
+  settings put global window_animation_scale 1.0 2>/dev/null
+  settings put global transition_animation_scale 1.0 2>/dev/null
+  settings put global animator_duration_scale 1.0 2>/dev/null
+  print_status "$GREEN" "  Animations restored to defaults"
+}
+
+# ============================================================
 # LMK Minfree Restore
 # ============================================================
 restore_lmk() {
@@ -65,9 +86,13 @@ restore_lmk() {
 # Dalvik Heap Restore
 # ============================================================
 restore_dalvik() {
+  setprop dalvik.vm.heapstartsize 8m
   setprop dalvik.vm.heapgrowthlimit 256m
   setprop dalvik.vm.heapsize 512m
-  print_status "$GREEN" "  Dalvik heap restored: growthlimit=256m, heapsize=512m"
+  setprop dalvik.vm.heaptargetutilization 0.75
+  setprop dalvik.vm.heapminfree 2m
+  setprop dalvik.vm.heapmaxfree 8m
+  print_status "$GREEN" "  Dalvik heap restored to defaults"
 }
 
 # ============================================================
@@ -125,28 +150,34 @@ printf "\n"
 print_status "$CYAN" "=== ROBLOX MODE: OFF ==="
 printf "\n"
 
-print_status "$CYAN" "[1/8] Checking root access..."
+print_status "$CYAN" "[1/10] Checking root access..."
 check_root
 
-print_status "$CYAN" "[2/8] Disabling ZRAM..."
+print_status "$CYAN" "[2/10] Disabling ZRAM..."
 disable_zram
 
-print_status "$CYAN" "[3/8] Restoring swappiness..."
+print_status "$CYAN" "[3/10] Restoring swappiness..."
 restore_swappiness
 
-print_status "$CYAN" "[4/8] Restoring LMK minfree..."
+print_status "$CYAN" "[4/10] Restoring VM kernel parameters..."
+restore_vm_kernel
+
+print_status "$CYAN" "[5/10] Restoring animations..."
+restore_animations
+
+print_status "$CYAN" "[6/10] Restoring LMK minfree..."
 restore_lmk
 
-print_status "$CYAN" "[5/8] Restoring Dalvik heap..."
+print_status "$CYAN" "[7/10] Restoring Dalvik heap..."
 restore_dalvik
 
-print_status "$CYAN" "[6/8] Restoring hardware overlays..."
+print_status "$CYAN" "[8/10] Restoring hardware overlays..."
 restore_hw_overlays
 
-print_status "$CYAN" "[7/8] Restoring display settings..."
+print_status "$CYAN" "[9/10] Restoring display settings..."
 restore_display
 
-print_status "$CYAN" "[8/8] Re-enabling browsers..."
+print_status "$CYAN" "[10/10] Re-enabling browsers..."
 enable_browsers
 
 printf "\n"
