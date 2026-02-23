@@ -3,4 +3,4 @@
 # Place this file in ~/.shortcuts/ and use Termux:Widget to add a home screen shortcut
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-tsu sh "${SCRIPT_DIR}/../roblox_mode_off.sh"
+su -c "sh '${SCRIPT_DIR}/../roblox_mode_off.sh'"

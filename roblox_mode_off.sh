@@ -22,7 +22,7 @@ print_status() {
 # ============================================================
 check_root() {
   if [ "$(id -u)" -ne 0 ]; then
-    print_status "$RED" "Error: Root access required. Run via tsu or su."
+    print_status "$RED" "Error: Root access required. Run via su -c 'sh roblox_mode_off.sh'"
     exit 1
   fi
   print_status "$GREEN" "Root access confirmed."

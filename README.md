@@ -26,9 +26,9 @@ Shell scripts that optimize a rooted Android 10 device with 4GB RAM for running 
 
 1. **Rooted device** — Magisk, KernelSU, or equivalent
 2. **Termux** — Install from [F-Droid](https://f-droid.org/en/packages/com.termux/) (the Play Store version is outdated)
-3. **tsu** — Install inside Termux:
+3. **su access** — Provided by your root solution (Magisk, KernelSU). Verify with:
    ```bash
-   pkg install tsu
+   su -c 'id'
    ```
 
 ## Installation
@@ -47,13 +47,13 @@ chmod +x roblox_mode.sh roblox_mode_off.sh
 **Optimize:**
 
 ```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode.sh -o /data/local/tmp/roblox_mode.sh && tsu sh /data/local/tmp/roblox_mode.sh
+curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode.sh -o /data/local/tmp/roblox_mode.sh && su -c 'sh /data/local/tmp/roblox_mode.sh'
 ```
 
 **Restore:**
 
 ```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode_off.sh -o /data/local/tmp/roblox_mode_off.sh && tsu sh /data/local/tmp/roblox_mode_off.sh
+curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode_off.sh -o /data/local/tmp/roblox_mode_off.sh && su -c 'sh /data/local/tmp/roblox_mode_off.sh'
 ```
 
 > Replace `azmi2409` with your actual GitHub username.
@@ -63,7 +63,7 @@ curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/robl
 ### Enable Roblox mode
 
 ```bash
-tsu sh roblox_mode.sh
+su -c 'sh roblox_mode.sh'
 ```
 
 This runs all 10 optimization steps (see [What the scripts do](#what-the-scripts-do) below), then prints a launch guide. Wait ~10 seconds between launching each Roblox instance.
@@ -71,7 +71,7 @@ This runs all 10 optimization steps (see [What the scripts do](#what-the-scripts
 ### Restore normal settings
 
 ```bash
-tsu sh roblox_mode_off.sh
+su -c 'sh roblox_mode_off.sh'
 ```
 
 Reverts every change made by the optimization script in 7 steps.
@@ -95,8 +95,8 @@ Reverts every change made by the optimization script in 7 steps.
 Add these to your `~/.bashrc` for quick access:
 
 ```bash
-alias roblox-on='tsu sh ~/roblox-android-opt/roblox_mode.sh'
-alias roblox-off='tsu sh ~/roblox-android-opt/roblox_mode_off.sh'
+alias roblox-on='su -c "sh ~/roblox-android-opt/roblox_mode.sh"'
+alias roblox-off='su -c "sh ~/roblox-android-opt/roblox_mode_off.sh"'
 ```
 
 Then reload:
@@ -112,11 +112,11 @@ Now you can just type `roblox-on` or `roblox-off` in Termux.
 ### Root access failure
 
 ```
-Error: Root access required. Run via tsu or su.
+Error: Root access required. Run via su
 ```
 
 - Make sure your device is rooted and Termux has superuser permission
-- Run `tsu` by itself first to verify root works, then try again
+- Run `su -c 'id'` to verify root works, then try again
 - If using Magisk, check that Termux is in the superuser allow list
 
 ### ZRAM initialization failure
@@ -143,7 +143,7 @@ Using LMKD fallback via setprop
 If a browser stays disabled after running the restore script:
 
 ```bash
-tsu pm enable --user 0 com.android.chrome
+su -c 'pm enable --user 0 com.android.chrome'
 ```
 
 Replace `com.android.chrome` with the package name of the affected browser:
