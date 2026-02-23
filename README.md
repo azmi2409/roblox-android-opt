@@ -1,182 +1,208 @@
 # Roblox Android Optimizer
 
-Shell scripts that optimize a rooted Android 10 device with 4GB RAM for running **three simultaneous Roblox instances** in freeform mode. Kills background apps, configures ZRAM, tunes the low memory killer, limits Dalvik heap, disables browsers, and more — then cleanly reverts everything when you're done.
+Shell scripts that optimize a rooted Android device for running multiple simultaneous Roblox instances in freeform mode. Handles memory optimization, display configuration, auto-launch with game deep links, crash recovery via watchdog, and auto-installs Roblox if missing.
+
+## Features
+
+- 16-step memory and performance optimization
+- Auto-detect and launch Roblox across all VSCloner user profiles
+- Freeform windowing with auto-positioning (portrait, HD 720x1280)
+- Deep link support for auto-joining games and private servers
+- Watchdog process that auto-restarts crashed instances
+- Auto-download and install Roblox APK if not present
+- One-command install with `roblox-on` / `roblox-off` shortcuts
+- Cleanly reverts all changes when done
 
 ## Target Device
 
 | Spec | Value |
 |------|-------|
 | OS | Android 10 |
-| RAM | 4GB |
+| RAM | 4 GB |
 | Root | Required (Magisk, KernelSU, etc.) |
-| Device | vsphone (or similar low-RAM Android) |
-| Mode | Freeform windowing for multi-instance |
+| Device | vsphone KVIP (or similar) |
+| Cloner | VSCloner (multi-user profiles) |
+| Mode | Freeform windowing, portrait |
 
 ## Memory Budget
 
 | Component | Allocation |
 |-----------|-----------|
 | System overhead | ~800 MB |
-| ZRAM expansion | +700–900 MB effective |
-| Roblox × 3 | ~1.2 GB (300–400 MB each) |
+| ZRAM expansion | +700-900 MB effective |
+| Roblox instances | ~300-400 MB each |
 | GPU / compositor | ~400 MB |
-| **Estimated free at idle** | **~1.3–1.6 GB** |
+| Estimated free at idle | ~1.3-1.6 GB |
 
 ## Prerequisites
 
-1. **Rooted device** — Magisk, KernelSU, or equivalent
-2. **Termux** — Install from [F-Droid](https://f-droid.org/en/packages/com.termux/) (the Play Store version is outdated)
-3. **su access** — Provided by your root solution (Magisk, KernelSU). Verify with:
+1. Rooted device (Magisk, KernelSU, or equivalent)
+2. [Termux](https://f-droid.org/en/packages/com.termux/) from F-Droid
+3. [VSCloner](https://play.google.com/store/apps/details?id=com.vphone.clone) for multi-instance cloning
+4. Verify root access:
    ```bash
    su -c 'id'
    ```
 
 ## Installation
 
-### Option A: Git clone
+### Quick Install
 
 ```bash
 pkg install git
 git clone https://github.com/azmi2409/roblox-android-opt.git
 cd roblox-android-opt
-chmod +x roblox_mode.sh roblox_mode_off.sh
+su -c 'sh install.sh'
 ```
 
-### Option B: One-liner curl (no clone needed)
+This copies scripts to `/data/local/tmp/roblox-opt/` and creates `roblox-on` / `roblox-off` commands. The installer tries `/system/bin` first, falls back to a Magisk module, or `/data/local/tmp`.
 
-**Optimize:**
+### One-liner Install (no git needed)
 
 ```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode.sh -o /data/local/tmp/roblox_mode.sh && su -c 'sh /data/local/tmp/roblox_mode.sh'
+mkdir -p /data/local/tmp/roblox-setup && cd /data/local/tmp/roblox-setup && for f in roblox_mode.sh roblox_mode_off.sh roblox_watchdog.sh install.sh; do curl -sLO "https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/$f"; done && su -c 'sh install.sh'
 ```
-
-**Restore:**
-
-```bash
-curl -sL https://raw.githubusercontent.com/azmi2409/roblox-android-opt/main/roblox_mode_off.sh -o /data/local/tmp/roblox_mode_off.sh && su -c 'sh /data/local/tmp/roblox_mode_off.sh'
-```
-
-> Replace `azmi2409` with your actual GitHub username.
 
 ## Usage
 
-### Enable Roblox mode
+### Start Roblox mode
 
 ```bash
-su -c 'sh roblox_mode.sh'
+su -c 'roblox-on'
 ```
 
-This runs all 10 optimization steps (see [What the scripts do](#what-the-scripts-do) below), then prints a launch guide. Wait ~10 seconds between launching each Roblox instance.
-
-### Restore normal settings
+### Join a specific game
 
 ```bash
-su -c 'sh roblox_mode_off.sh'
+su -c 'roblox-on PLACE_ID'
 ```
 
-Reverts every change made by the optimization script in 7 steps.
-
-## Optional Setup
-
-### Termux:Widget (one-tap home screen shortcuts)
-
-1. Install **Termux:Widget** from [F-Droid](https://f-droid.org/en/packages/com.termux.widget/)
-2. Copy the widget launcher scripts:
-   ```bash
-   mkdir -p ~/.shortcuts
-   cp .shortcuts/roblox_on.sh ~/.shortcuts/
-   cp .shortcuts/roblox_off.sh ~/.shortcuts/
-   chmod +x ~/.shortcuts/roblox_on.sh ~/.shortcuts/roblox_off.sh
-   ```
-3. Add a Termux:Widget to your home screen and select `roblox_on` or `roblox_off`
-
-### Bashrc aliases
-
-Add these to your `~/.bashrc` for quick access:
+### Join a private server
 
 ```bash
-alias roblox-on='su -c "sh ~/roblox-android-opt/roblox_mode.sh"'
-alias roblox-off='su -c "sh ~/roblox-android-opt/roblox_mode_off.sh"'
+su -c 'roblox-on PLACE_ID PRIVATE_SERVER_CODE'
 ```
 
-Then reload:
+The Place ID is the number from the Roblox game URL (e.g. `https://www.roblox.com/games/123456789/GameName` -> `123456789`). The private server code is from the `privateServerLinkCode=` parameter in the invite link.
+
+### Stop Roblox mode
 
 ```bash
-source ~/.bashrc
+su -c 'roblox-off'
 ```
 
-Now you can just type `roblox-on` or `roblox-off` in Termux.
+Reverts all optimizations, stops the watchdog, restores display, re-enables browsers.
+
+### Without installer (direct)
+
+```bash
+su -c 'sh roblox_mode.sh'                              # optimize + launch
+su -c 'sh roblox_mode.sh 123456789'                    # join a game
+su -c 'sh roblox_mode.sh 123456789 servercode'         # private server
+su -c 'sh roblox_mode_off.sh'                          # restore
+```
+
+## How It Works
+
+### `roblox_mode.sh` - 16 optimization steps
+
+| Step | Action |
+|------|--------|
+| 1 | Root access check |
+| 2 | Auto-download and install Roblox APK if missing, open VSCloner for cloning |
+| 3 | Force-stop background packages (GMS, Play Store, Maps, YouTube, etc.) |
+| 4 | Drop filesystem caches |
+| 5 | Configure 2 GB ZRAM swap |
+| 6 | Set swappiness to 80 |
+| 7 | Tune VM kernel (dirty ratio, VFS cache pressure, min free KB) |
+| 8 | Disable all animations |
+| 9 | Tune Low Memory Killer thresholds |
+| 10 | Limit Dalvik heap (256m growth, 384m max) |
+| 11 | Disable hardware overlays |
+| 12 | Configure freeform display (720x1280 HD, portrait, 240dpi) |
+| 13 | Disable browsers (Chrome, Firefox, Edge, Opera, Brave, Samsung) |
+| 14 | Auto-detect users with Roblox, launch in freeform, position windows |
+| 15 | Send memory trim signal to all Roblox instances |
+| 16 | Start watchdog for crash recovery |
+
+### `roblox_mode_off.sh` - 11 restore steps
+
+| Step | Action |
+|------|--------|
+| 1 | Stop watchdog |
+| 2 | Root access check |
+| 3 | Disable ZRAM |
+| 4 | Restore swappiness to 60 |
+| 5 | Restore VM kernel defaults |
+| 6 | Restore animations |
+| 7 | Restore LMK minfree defaults |
+| 8 | Restore Dalvik heap defaults |
+| 9 | Re-enable hardware overlays |
+| 10 | Restore display (auto-rotation, native resolution) |
+| 11 | Re-enable browsers |
+
+### `roblox_watchdog.sh` - Crash recovery
+
+Runs in the background, checks every 15 seconds if any Roblox instance has crashed. If one is down, it restarts it in freeform mode, repositions the window, and re-joins the same game/server if a deep link was used.
+
+Logs to `/data/local/tmp/roblox_watchdog.log`.
+
+### Multi-instance via VSCloner
+
+VSCloner creates Android user profiles (DoppelgangerUsers) to run app clones. The script auto-detects all users with Roblox installed via `pm list users` + `pm list packages --user`, so you don't need to hardcode user IDs. If you add or remove clones, the script adapts automatically.
+
+## File Structure
+
+```
+roblox_mode.sh        # Main optimization + launch script
+roblox_mode_off.sh    # Restore all settings
+roblox_watchdog.sh    # Background crash recovery
+install.sh            # Installer (creates roblox-on/off commands)
+.shortcuts/
+  roblox_on.sh        # Termux:Widget shortcut
+  roblox_off.sh       # Termux:Widget shortcut
+```
 
 ## Troubleshooting
 
 ### Root access failure
 
-```
-Error: Root access required. Run via su
-```
-
-- Make sure your device is rooted and Termux has superuser permission
-- Run `su -c 'id'` to verify root works, then try again
-- If using Magisk, check that Termux is in the superuser allow list
+Make sure Termux has superuser permission. Run `su -c 'id'` to verify. If using Magisk, check the superuser allow list.
 
 ### ZRAM initialization failure
 
-```
-ZRAM initialization failed, continuing without ZRAM.
-```
-
-- The script continues without ZRAM — you'll have less effective RAM but everything else still works
-- Some kernels don't expose `/sys/block/zram0`. Check with `ls /sys/block/zram*`
-- Try rebooting and running the script again
-
-### LMKD fallback
-
-```
-Using LMKD fallback via setprop
-```
-
-- This is normal on some Android 10 builds that use the userspace LMKD instead of the kernel LMK module
-- The script automatically falls back to `setprop` — no action needed
+The script continues without ZRAM. Some kernels don't expose `/sys/block/zram0`. Check with `ls /sys/block/zram*`.
 
 ### Browsers not re-enabling
 
-If a browser stays disabled after running the restore script:
-
+Manually re-enable:
 ```bash
 su -c 'pm enable --user 0 com.android.chrome'
 ```
 
-Replace `com.android.chrome` with the package name of the affected browser:
-- Firefox: `org.mozilla.firefox`
-- Samsung Internet: `com.sec.android.app.sbrowser`
-- Edge: `com.microsoft.emmx`
-- Opera: `com.opera.browser`
-- Brave: `com.brave.browser`
+### Watchdog log
 
-## What the Scripts Do
+```bash
+cat /data/local/tmp/roblox_watchdog.log
+```
 
-### `roblox_mode.sh` — 10 optimization steps
+### Manual watchdog stop
 
-1. **Root check** — Verifies UID 0; exits if not root
-2. **Background cleanup** — Runs `am kill-all` and selectively kills non-essential processes (preserves system_server, surfaceflinger, servicemanager, Termux)
-3. **Cache drop** — Syncs filesystem, drops page cache/dentries/inodes via `/proc/sys/vm/drop_caches`
-4. **ZRAM setup** — Resets and configures a 2 GB ZRAM swap device for ~700–900 MB effective memory expansion
-5. **Swappiness** — Sets kernel swappiness to 80 for aggressive ZRAM usage
-6. **LMK tuning** — Writes aggressive minfree thresholds (`12288,16384,20480,24576,28672,32768` pages) to kill background apps earlier; falls back to LMKD `setprop` if needed
-7. **Dalvik heap** — Limits per-app heap to `growthlimit=256m`, `heapsize=384m` to keep each Roblox instance within 300–400 MB
-8. **Graphics** — Disables hardware overlays and resets display to native resolution to reduce compositor memory
-9. **Browser disable** — Force-stops and disables Chrome, Firefox, Samsung Internet, Edge, Opera, and Brave to prevent accidental RAM usage
-10. **Memory trim** — Sends `TRIM_MEMORY_RUNNING_CRITICAL` to any running Roblox instances, then prints a staggered launch guide
+```bash
+kill $(cat /data/local/tmp/roblox_watchdog.pid)
+```
 
-### `roblox_mode_off.sh` — 7 restore steps
+### Uninstall
 
-1. **Root check** — Verifies UID 0; exits if not root
-2. **ZRAM disable** — Runs `swapoff` on the ZRAM device
-3. **Swappiness restore** — Resets to Android default (60)
-4. **LMK restore** — Writes default minfree values (`18432,23040,27648,32256,36864,46080`)
-5. **Dalvik heap restore** — Resets to Android 10 defaults (`growthlimit=256m`, `heapsize=512m`)
-6. **HW overlays restore** — Re-enables hardware overlays
-7. **Browser re-enable** — Re-enables all previously disabled browser packages
+```bash
+su -c 'rm -rf /data/local/tmp/roblox-opt'
+su -c 'rm /system/bin/roblox-on /system/bin/roblox-off'
+```
+
+If installed via Magisk module:
+```bash
+su -c 'rm -rf /data/adb/modules/roblox-opt'
+```
 
 ## License
 

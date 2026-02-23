@@ -29,6 +29,19 @@ check_root() {
 }
 
 # ============================================================
+# Package Cache
+# ============================================================
+PKG_CACHE=""
+
+init_pkg_cache() {
+  PKG_CACHE=$(pm list packages 2>/dev/null)
+}
+
+pkg_installed() {
+  echo "$PKG_CACHE" | grep -q "$1"
+}
+
+# ============================================================
 # ZRAM Disable
 # ============================================================
 disable_zram() {
@@ -134,7 +147,7 @@ com.brave.browser
 enable_browsers() {
   for pkg in $BROWSER_PACKAGES; do
     # Skip if package is not installed on device
-    if ! pm list packages 2>/dev/null | grep -q "$pkg"; then
+    if ! pkg_installed "$pkg"; then
       continue
     fi
 
@@ -169,6 +182,7 @@ stop_watchdog
 
 print_status "$CYAN" "[2/11] Checking root access..."
 check_root
+init_pkg_cache
 
 print_status "$CYAN" "[3/11] Disabling ZRAM..."
 disable_zram

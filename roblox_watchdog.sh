@@ -1,6 +1,6 @@
 #!/system/bin/sh
 # roblox_watchdog.sh - Monitor and auto-restart crashed Roblox instances
-# Run in background: su -c 'sh roblox_watchdog.sh &'
+# Run in background: su -c 'sh roblox_watchdog.sh [PLACE_ID] [SERVER_CODE] &'
 # Stop: kill $(cat /data/local/tmp/roblox_watchdog.pid)
 
 # ============================================================
@@ -20,6 +20,20 @@ LOG_FILE="/data/local/tmp/roblox_watchdog.log"
 USERS_FILE="/data/local/tmp/roblox_users.txt"
 
 # ============================================================
+# Game args (optional, passed from roblox_mode.sh or saved files)
+# ============================================================
+PLACE_ID="${1:-}"
+PRIVATE_SERVER_CODE="${2:-}"
+
+# Fallback: read from saved files if not passed as args
+if [ -z "$PLACE_ID" ] && [ -f /data/local/tmp/roblox_place_id.txt ]; then
+  PLACE_ID=$(cat /data/local/tmp/roblox_place_id.txt)
+fi
+if [ -z "$PRIVATE_SERVER_CODE" ] && [ -f /data/local/tmp/roblox_server_code.txt ]; then
+  PRIVATE_SERVER_CODE=$(cat /data/local/tmp/roblox_server_code.txt)
+fi
+
+# ============================================================
 # Logging
 # ============================================================
 log_msg() {
@@ -32,6 +46,9 @@ log_msg() {
 # ============================================================
 echo $$ > "$PID_FILE"
 log_msg "Watchdog started (PID $$)"
+if [ -n "$PLACE_ID" ]; then
+  log_msg "Game: $PLACE_ID (server: ${PRIVATE_SERVER_CODE:-public})"
+fi
 
 # ============================================================
 # Cleanup on exit
@@ -78,6 +95,24 @@ get_task_id() {
 }
 
 # ============================================================
+# Build launch command with optional deep link
+# ============================================================
+build_launch_cmd() {
+  user_id="$1"
+  base_cmd="am start --user $user_id --windowingMode 5"
+
+  if [ -n "$PLACE_ID" ]; then
+    uri="roblox://placeId=$PLACE_ID"
+    if [ -n "$PRIVATE_SERVER_CODE" ]; then
+      uri="${uri}&linkCode=$PRIVATE_SERVER_CODE"
+    fi
+    printf "%s" "$base_cmd -a android.intent.action.VIEW -d \"$uri\" -n $ROBLOX_PKG/$ROBLOX_ACTIVITY"
+  else
+    printf "%s" "$base_cmd -n $ROBLOX_PKG/$ROBLOX_ACTIVITY"
+  fi
+}
+
+# ============================================================
 # Restart and reposition a crashed instance
 # ============================================================
 restart_instance() {
@@ -88,7 +123,8 @@ restart_instance() {
 
   log_msg "Instance $instance_num (user $user_id) crashed - restarting..."
 
-  am start --user "$user_id" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
+  launch_cmd=$(build_launch_cmd "$user_id")
+  eval "$launch_cmd" 2>/dev/null
   sleep "$RESTART_DELAY"
 
   task_id=$(get_task_id "$user_id")

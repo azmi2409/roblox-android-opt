@@ -18,6 +18,62 @@ print_status() {
 }
 
 # ============================================================
+# CLI Arguments (all optional)
+# ============================================================
+# Usage:
+#   sh roblox_mode.sh                                    # just optimize + launch
+#   sh roblox_mode.sh PLACE_ID                           # join a public game
+#   sh roblox_mode.sh PLACE_ID SERVER_CODE               # join a private server
+#   sh roblox_mode.sh "https://www.roblox.com/share?..." # paste a share link
+#   sh roblox_mode.sh "https://www.roblox.com/games/..." # paste a game link
+
+parse_roblox_url() {
+  url="$1"
+  case "$url" in
+    *roblox.com/share*)
+      # Share link: https://www.roblox.com/share?code=CODE&type=Server
+      SHARE_CODE=$(echo "$url" | sed 's/.*[?&]code=\([^&]*\).*/\1/')
+      SHARE_TYPE=$(echo "$url" | sed 's/.*[?&]type=\([^&]*\).*/\1/')
+      if [ "$SHARE_TYPE" = "Server" ] && [ -n "$SHARE_CODE" ]; then
+        PRIVATE_SERVER_CODE="$SHARE_CODE"
+      fi
+      # Share links don't always contain placeId, try to extract it
+      if echo "$url" | grep -q "placeId="; then
+        PLACE_ID=$(echo "$url" | sed 's/.*[?&]placeId=\([^&]*\).*/\1/')
+      fi
+      ;;
+    *roblox.com/games/*)
+      # Game link: https://www.roblox.com/games/123456789/GameName?privateServerLinkCode=CODE
+      PLACE_ID=$(echo "$url" | sed 's|.*/games/\([0-9]*\).*|\1|')
+      if echo "$url" | grep -q "privateServerLinkCode="; then
+        PRIVATE_SERVER_CODE=$(echo "$url" | sed 's/.*privateServerLinkCode=\([^&]*\).*/\1/')
+      fi
+      ;;
+    *[0-9]*)
+      # Plain numeric place ID
+      PLACE_ID="$url"
+      ;;
+  esac
+}
+
+PLACE_ID=""
+PRIVATE_SERVER_CODE=""
+
+if [ -n "$1" ]; then
+  case "$1" in
+    http*|*roblox.com*)
+      # First arg is a URL — parse it
+      parse_roblox_url "$1"
+      ;;
+    *)
+      # First arg is a place ID, second is optional server code
+      PLACE_ID="$1"
+      PRIVATE_SERVER_CODE="${2:-}"
+      ;;
+  esac
+fi
+
+# ============================================================
 # Root Access Gate
 # ============================================================
 check_root() {
@@ -26,6 +82,24 @@ check_root() {
     exit 1
   fi
   print_status "$GREEN" "Root access confirmed."
+}
+
+# ============================================================
+# Package Cache (avoid calling pm list packages 25+ times)
+# ============================================================
+PKG_CACHE=""
+
+init_pkg_cache() {
+  PKG_CACHE=$(pm list packages 2>/dev/null)
+  print_status "$GREEN" "Package cache initialized"
+}
+
+pkg_installed() {
+  echo "$PKG_CACHE" | grep -q "$1"
+}
+
+pkg_installed_user() {
+  pm list packages --user "$1" 2>/dev/null | grep -q "$2"
 }
 
 # ============================================================
@@ -68,7 +142,7 @@ cleanup_background() {
   # This is safe: only targets specific packages, never Termux or system
   for pkg in $KILL_PACKAGES; do
     # Check if package exists before trying to stop it
-    if pm list packages 2>/dev/null | grep -q "$pkg"; then
+    if pkg_installed "$pkg"; then
       am force-stop "$pkg" 2>/dev/null
       killed=$((killed + 1))
     fi
@@ -246,7 +320,7 @@ disable_browsers() {
   print_status "$CYAN" "Disabling browsers..."
   for pkg in $BROWSER_PACKAGES; do
     # Skip if package is not installed
-    if ! pm list packages 2>/dev/null | grep -q "$pkg"; then
+    if ! pkg_installed "$pkg"; then
       continue
     fi
 
@@ -254,6 +328,86 @@ disable_browsers() {
     pm disable-user --user 0 "$pkg" 2>/dev/null
     print_status "$GREEN" "Disabled: $pkg"
   done
+}
+
+# ============================================================
+# Roblox APK Download URL
+# ============================================================
+ROBLOX_APK_URL="https://delta.filenetwork.vip/file/Delta-2.708.880.apk"
+ROBLOX_APK_PATH="/data/local/tmp/roblox.apk"
+VSCLONER_PKG="com.vphone.clone"
+
+# ============================================================
+# Ensure Roblox is Installed (download if missing)
+# ============================================================
+ensure_roblox_installed() {
+  # Check if Roblox is installed for user 0
+  if pkg_installed_user 0 "$ROBLOX_PKG"; then
+    print_status "$GREEN" "Roblox already installed for user 0"
+    return 0
+  fi
+
+  print_status "$YELLOW" "Roblox not installed, downloading APK..."
+
+  # Download APK
+  if command -v curl >/dev/null 2>&1; then
+    curl -sL --connect-timeout 30 --max-time 120 -o "$ROBLOX_APK_PATH" "$ROBLOX_APK_URL"
+  elif command -v wget >/dev/null 2>&1; then
+    wget -q -O "$ROBLOX_APK_PATH" "$ROBLOX_APK_URL"
+  else
+    print_status "$RED" "Neither curl nor wget available, cannot download APK"
+    return 1
+  fi
+
+  if [ ! -f "$ROBLOX_APK_PATH" ]; then
+    print_status "$RED" "APK download failed"
+    return 1
+  fi
+
+  print_status "$GREEN" "APK downloaded to $ROBLOX_APK_PATH"
+
+  # Install APK
+  print_status "$CYAN" "Installing Roblox APK..."
+  pm install -r "$ROBLOX_APK_PATH" 2>/dev/null
+  if [ $? -ne 0 ]; then
+    print_status "$RED" "APK installation failed"
+    return 1
+  fi
+
+  print_status "$GREEN" "Roblox installed successfully"
+
+  # Clean up APK
+  rm -f "$ROBLOX_APK_PATH"
+
+  # Duplicate via VSCloner if available
+  duplicate_via_vscloner
+
+  return 0
+}
+
+# ============================================================
+# Duplicate Roblox via VSCloner
+# ============================================================
+duplicate_via_vscloner() {
+  if ! pkg_installed "$VSCLONER_PKG"; then
+    print_status "$YELLOW" "VSCloner not installed, skipping duplication"
+    print_status "$YELLOW" "Install VSCloner and manually clone Roblox for multi-instance"
+    return 1
+  fi
+
+  print_status "$CYAN" "Opening VSCloner to duplicate Roblox..."
+  print_status "$CYAN" "Please manually clone Roblox in VSCloner, then re-run this script"
+
+  # Launch VSCloner
+  am start -n "$VSCLONER_PKG/$(pm dump "$VSCLONER_PKG" 2>/dev/null | grep -A1 'android.intent.action.MAIN' | grep -o '[^ ]*/[^ ]*' | head -1 | cut -d'/' -f2)" 2>/dev/null
+  if [ $? -ne 0 ]; then
+    # Fallback: launch via monkey
+    am start -a android.intent.action.MAIN -c android.intent.category.LAUNCHER -p "$VSCLONER_PKG" 2>/dev/null
+  fi
+
+  print_status "$YELLOW" "Waiting for you to clone Roblox in VSCloner..."
+  print_status "$YELLOW" "After cloning, re-run: su -c 'sh roblox_mode.sh'"
+  return 1
 }
 
 # ============================================================
@@ -276,7 +430,7 @@ detect_roblox_users() {
 
   for uid in $user_ids; do
     # Check if Roblox is installed for this user
-    if pm list packages --user "$uid" 2>/dev/null | grep -q "$ROBLOX_PKG"; then
+    if pkg_installed_user "$uid" "$ROBLOX_PKG"; then
       ROBLOX_USERS="$ROBLOX_USERS $uid"
     fi
   done
@@ -310,6 +464,26 @@ get_task_id() {
 }
 
 # ============================================================
+# Build Roblox Launch Intent
+# ============================================================
+build_launch_cmd() {
+  user_id="$1"
+  base_cmd="am start --user $user_id --windowingMode 5"
+
+  if [ -n "$PLACE_ID" ]; then
+    # Deep link to specific game
+    uri="roblox://placeId=$PLACE_ID"
+    if [ -n "$PRIVATE_SERVER_CODE" ]; then
+      uri="${uri}&linkCode=$PRIVATE_SERVER_CODE"
+    fi
+    printf "%s" "$base_cmd -a android.intent.action.VIEW -d \"$uri\" -n $ROBLOX_PKG/$ROBLOX_ACTIVITY"
+  else
+    # Normal launch
+    printf "%s" "$base_cmd -n $ROBLOX_PKG/$ROBLOX_ACTIVITY"
+  fi
+}
+
+# ============================================================
 # Launch and Position Roblox Instances
 # ============================================================
 launch_roblox_instances() {
@@ -318,6 +492,13 @@ launch_roblox_instances() {
   fi
 
   print_status "$CYAN" "Launching and positioning Roblox instances..."
+
+  if [ -n "$PLACE_ID" ]; then
+    print_status "$CYAN" "  Game ID: $PLACE_ID"
+    if [ -n "$PRIVATE_SERVER_CODE" ]; then
+      print_status "$CYAN" "  Private server: $PRIVATE_SERVER_CODE"
+    fi
+  fi
 
   ROW_H=$((DISPLAY_H / USER_COUNT))
   instance=0
@@ -333,8 +514,9 @@ launch_roblox_instances() {
     fi
 
     print_status "$CYAN" "  Launching instance $instance (user $uid)..."
-    am start --user "$uid" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
-    sleep 8
+    launch_cmd=$(build_launch_cmd "$uid")
+    eval "$launch_cmd" 2>/dev/null
+    sleep 5
 
     task_id=$(get_task_id "$uid")
     if [ -n "$task_id" ]; then
@@ -344,6 +526,10 @@ launch_roblox_instances() {
       print_status "$YELLOW" "  Could not find task for instance $instance"
     fi
   done
+
+  # Save launch config for watchdog
+  echo "$PLACE_ID" > /data/local/tmp/roblox_place_id.txt
+  echo "$PRIVATE_SERVER_CODE" > /data/local/tmp/roblox_server_code.txt
 }
 
 # ============================================================
@@ -380,7 +566,7 @@ start_watchdog() {
   fi
 
   if [ -f "$SCRIPT_DIR/roblox_watchdog.sh" ]; then
-    sh "$SCRIPT_DIR/roblox_watchdog.sh" &
+    sh "$SCRIPT_DIR/roblox_watchdog.sh" "$PLACE_ID" "$PRIVATE_SERVER_CODE" &
     print_status "$GREEN" "Watchdog started (PID $!)"
   else
     print_status "$YELLOW" "Watchdog script not found at $SCRIPT_DIR/roblox_watchdog.sh"
@@ -416,51 +602,70 @@ printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE: ON ==="
 printf "\n"
 
-print_status "$CYAN" "[1/15] Checking root access..."
-check_root
+if [ -n "$PLACE_ID" ]; then
+  print_status "$CYAN" "Game: $PLACE_ID"
+  if [ -n "$PRIVATE_SERVER_CODE" ]; then
+    print_status "$CYAN" "Private Server: $PRIVATE_SERVER_CODE"
+  fi
+  printf "\n"
+fi
 
-print_status "$CYAN" "[2/15] Cleaning background processes..."
+print_status "$CYAN" "[1/16] Checking root access..."
+check_root
+init_pkg_cache
+
+print_status "$CYAN" "[2/16] Ensuring Roblox is installed..."
+if ! ensure_roblox_installed; then
+  print_status "$RED" "Cannot proceed without Roblox installed"
+  exit 1
+fi
+
+print_status "$CYAN" "[3/16] Cleaning background processes..."
 cleanup_background
 
-print_status "$CYAN" "[3/15] Dropping filesystem caches..."
+print_status "$CYAN" "[4/16] Dropping filesystem caches..."
 drop_caches
 
-print_status "$CYAN" "[4/15] Configuring ZRAM..."
+print_status "$CYAN" "[5/16] Configuring ZRAM..."
 configure_zram
 
-print_status "$CYAN" "[5/15] Tuning swappiness..."
+print_status "$CYAN" "[6/16] Tuning swappiness..."
 tune_swappiness
 
-print_status "$CYAN" "[6/15] Tuning VM kernel parameters..."
+print_status "$CYAN" "[7/16] Tuning VM kernel parameters..."
 tune_vm_kernel
 
-print_status "$CYAN" "[7/15] Disabling animations..."
+print_status "$CYAN" "[8/16] Disabling animations..."
 disable_animations
 
-print_status "$CYAN" "[8/15] Tuning Low Memory Killer..."
+print_status "$CYAN" "[9/16] Tuning Low Memory Killer..."
 tune_lmk
 
-print_status "$CYAN" "[9/15] Configuring Dalvik heap limits..."
+print_status "$CYAN" "[10/16] Configuring Dalvik heap limits..."
 tune_dalvik_heap
 
-print_status "$CYAN" "[10/15] Tuning graphics settings..."
+print_status "$CYAN" "[11/16] Tuning graphics settings..."
 tune_graphics
 
-print_status "$CYAN" "[11/15] Configuring freeform display..."
+print_status "$CYAN" "[12/16] Configuring freeform display..."
 configure_freeform_display
 
-print_status "$CYAN" "[12/15] Disabling browsers..."
+print_status "$CYAN" "[13/16] Disabling browsers..."
 disable_browsers
 
-print_status "$CYAN" "[13/15] Launching and positioning Roblox instances..."
+print_status "$CYAN" "[14/16] Launching and positioning Roblox instances..."
 launch_roblox_instances
 
-print_status "$CYAN" "[14/15] Trimming memory..."
+print_status "$CYAN" "[15/16] Trimming memory..."
 trim_memory
 
-print_status "$CYAN" "[15/15] Starting watchdog..."
+print_status "$CYAN" "[16/16] Starting watchdog..."
 start_watchdog
 launch_summary
 
 printf "\n"
 print_status "$GREEN" "=== ROBLOX MODE READY ==="
+
+# Close Termux to free RAM (watchdog runs as detached process)
+sleep 2
+am force-stop com.termux 2>/dev/null
