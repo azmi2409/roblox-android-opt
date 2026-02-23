@@ -122,6 +122,7 @@ restore_hw_overlays() {
 restore_display() {
   # Restore auto-rotation
   settings put system accelerometer_rotation 1 2>/dev/null
+  settings put system user_rotation 0 2>/dev/null
   print_status "$GREEN" "  Auto-rotation restored"
 
   # Reset resolution and density to device defaults
@@ -130,6 +131,10 @@ restore_display() {
 
   wm density reset 2>/dev/null
   print_status "$GREEN" "  Display density restored to default"
+
+  # Restore resizable activities to default
+  settings put global development_force_resizable_activities 0 2>/dev/null
+  print_status "$GREEN" "  Force resizable activities disabled"
 }
 
 # ============================================================

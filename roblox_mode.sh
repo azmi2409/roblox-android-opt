@@ -287,9 +287,10 @@ tune_graphics() {
 configure_freeform_display() {
   print_status "$CYAN" "Configuring display for freeform stacking..."
 
-  # Keep portrait orientation (native), disable auto-rotate
+  # Lock to portrait: disable auto-rotate and force rotation=0 (portrait)
   settings put system accelerometer_rotation 0 2>/dev/null
-  print_status "$GREEN" "Auto-rotation disabled (portrait locked)"
+  settings put system user_rotation 0 2>/dev/null
+  print_status "$GREEN" "Auto-rotation disabled, rotation locked to portrait"
 
   # Set portrait resolution explicitly
   wm size 720x1280 2>/dev/null
@@ -302,6 +303,10 @@ configure_freeform_display() {
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
+
+  # Force apps to be resizable (ignore app-requested landscape orientation)
+  settings put global development_force_resizable_activities 1 2>/dev/null
+  print_status "$GREEN" "Force resizable activities enabled"
 }
 
 # ============================================================
