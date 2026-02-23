@@ -291,30 +291,30 @@ INSTANCE_H=640
 configure_freeform_display() {
   print_status "$CYAN" "Configuring display for freeform stacking..."
 
-  # Lock to portrait: disable auto-rotate and force rotation=0 (portrait)
+  # Lock to landscape: disable auto-rotate and force rotation=1 (landscape)
   settings put system accelerometer_rotation 0 2>/dev/null
-  settings put system user_rotation 0 2>/dev/null
-  print_status "$GREEN" "Auto-rotation disabled, rotation locked to portrait"
+  settings put system user_rotation 1 2>/dev/null
+  print_status "$GREEN" "Auto-rotation disabled, rotation locked to landscape"
 
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
   print_status "$GREEN" "Freeform window mode enabled"
 
-  # Force apps to be resizable (ignore app-requested landscape orientation)
+  # Force apps to be resizable (ignore app-requested orientation)
   settings put global development_force_resizable_activities 1 2>/dev/null
   print_status "$GREEN" "Force resizable activities enabled"
 }
 
 # Set display size dynamically based on instance count
+# Landscape: W = 360*N, H = 640. Instances stacked side by side.
 # Must be called AFTER detect_roblox_users sets USER_COUNT
 configure_display_size() {
-  DISPLAY_W=$INSTANCE_W
-  DISPLAY_H=$((INSTANCE_H * USER_COUNT))
+  DISPLAY_W=$((INSTANCE_W * USER_COUNT))
+  DISPLAY_H=$INSTANCE_H
 
   wm size ${DISPLAY_W}x${DISPLAY_H} 2>/dev/null
   print_status "$GREEN" "Display resolution set to ${DISPLAY_W}x${DISPLAY_H} (${USER_COUNT} x ${INSTANCE_W}x${INSTANCE_H})"
 
-  # Scale density proportionally (240 was for 720w, so 360w = 120dpi)
   wm density 120 2>/dev/null
   print_status "$GREEN" "Display density set to 120dpi"
 
@@ -526,8 +526,8 @@ launch_roblox_instances() {
 
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((INSTANCE_H * (instance - 1)))
-    BOT=$((INSTANCE_H * instance))
+    LEFT=$((INSTANCE_W * (instance - 1)))
+    RIGHT=$((INSTANCE_W * instance))
 
     print_status "$CYAN" "  Launching instance $instance (user $uid)..."
     launch_cmd=$(build_launch_cmd "$uid")
@@ -536,8 +536,8 @@ launch_roblox_instances() {
 
     task_id=$(get_task_id "$uid")
     if [ -n "$task_id" ]; then
-      am task resize "$task_id" 0 "$TOP" "$DISPLAY_W" "$BOT" 2>/dev/null
-      print_status "$GREEN" "  Instance $instance positioned: 0,$TOP -> ${DISPLAY_W},$BOT (${INSTANCE_W}x${INSTANCE_H})"
+      am task resize "$task_id" "$LEFT" 0 "$RIGHT" "$DISPLAY_H" 2>/dev/null
+      print_status "$GREEN" "  Instance $instance positioned: $LEFT,0 -> ${RIGHT},${DISPLAY_H} (${INSTANCE_W}x${INSTANCE_H})"
     else
       print_status "$YELLOW" "  Could not find task for instance $instance"
     fi

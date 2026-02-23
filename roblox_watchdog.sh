@@ -118,8 +118,8 @@ build_launch_cmd() {
 # ============================================================
 restart_instance() {
   user_id="$1"
-  top="$2"
-  bottom="$3"
+  left="$2"
+  right="$3"
   instance_num="$4"
 
   log_msg "Instance $instance_num (user $user_id) crashed - restarting..."
@@ -130,8 +130,8 @@ restart_instance() {
 
   task_id=$(get_task_id "$user_id")
   if [ -n "$task_id" ]; then
-    am task resize "$task_id" 0 "$top" "$INSTANCE_W" "$bottom" 2>/dev/null
-    log_msg "Instance $instance_num repositioned: 0,$top -> ${INSTANCE_W},$bottom"
+    am task resize "$task_id" "$left" 0 "$right" "$INSTANCE_H" 2>/dev/null
+    log_msg "Instance $instance_num repositioned: $left,0 -> ${right},${INSTANCE_H}"
   else
     log_msg "Instance $instance_num: could not find task after restart"
   fi
@@ -144,11 +144,11 @@ while true; do
   instance=0
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((INSTANCE_H * (instance - 1)))
-    BOT=$((INSTANCE_H * instance))
+    LEFT=$((INSTANCE_W * (instance - 1)))
+    RIGHT=$((INSTANCE_W * instance))
 
     if ! is_running "$uid"; then
-      restart_instance "$uid" "$TOP" "$BOT" "$instance"
+      restart_instance "$uid" "$LEFT" "$RIGHT" "$instance"
     fi
   done
 
