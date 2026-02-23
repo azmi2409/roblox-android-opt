@@ -218,12 +218,12 @@ configure_freeform_display() {
   print_status "$GREEN" "Auto-rotation disabled (portrait locked)"
 
   # Set portrait resolution explicitly
-  wm size 1080x1920 2>/dev/null
-  print_status "$GREEN" "Display resolution set to 1080x1920 (portrait)"
+  wm size 720x1280 2>/dev/null
+  print_status "$GREEN" "Display resolution set to 720x1280 HD (portrait)"
 
   # Standard density for vsphone KVIP
-  wm density 320 2>/dev/null
-  print_status "$GREEN" "Display density set to 320dpi"
+  wm density 240 2>/dev/null
+  print_status "$GREEN" "Display density set to 240dpi"
 
   # Enable freeform window mode
   settings put global enable_freeform_support 1 2>/dev/null
@@ -257,25 +257,30 @@ disable_browsers() {
 }
 
 # ============================================================
-# Roblox Package Configuration
+# Roblox Instance Configuration (VSCloner multi-user)
 # ============================================================
-# Main Roblox package + cloned instances
-# Modify these if your clones use different package names
-ROBLOX_PKG_1="com.roblox.client"
-ROBLOX_PKG_2="com.roblox.client"  # Clone 1 (Island/Shelter/work profile)
-ROBLOX_PKG_3="com.roblox.client"  # Clone 2 (Island/Shelter/work profile)
+# VSCloner runs clones under separate Android user profiles
+# All instances use the same package, different user IDs
+ROBLOX_PKG="com.roblox.client"
+ROBLOX_ACTIVITY="com.roblox.client.startup.ActivitySplash"
+
+# User IDs: 0 = main, 10/11 = VSCloner DoppelgangerUsers
+ROBLOX_USER_1=0
+ROBLOX_USER_2=10
+ROBLOX_USER_3=11
 
 # Display dimensions (must match configure_freeform_display)
-DISPLAY_W=1080
-DISPLAY_H=1920
+DISPLAY_W=720
+DISPLAY_H=1280
 
 # ============================================================
-# Get Task ID for a Package
+# Get Task ID for a User's Roblox Instance
 # ============================================================
 get_task_id() {
-  pkg="$1"
-  # Get the most recent task ID for this package
-  am stack list 2>/dev/null | grep "$pkg" | head -1 | sed 's/.*taskId=\([0-9]*\).*/\1/'
+  user_id="$1"
+  # Match by package name; for multi-user we grab the most recent
+  # task that belongs to this user's Roblox
+  am stack list 2>/dev/null | grep "$ROBLOX_PKG" | grep "userId=$user_id" | head -1 | sed 's/.*taskId=\([0-9]*\).*/\1/'
 }
 
 # ============================================================
@@ -284,14 +289,14 @@ get_task_id() {
 launch_roblox_instances() {
   print_status "$CYAN" "Launching and positioning Roblox instances..."
 
-  ROW_H=$((DISPLAY_H / 3))  # 240px per row
+  ROW_H=$((DISPLAY_H / 3))
 
-  # --- Instance 1: top row (0,0 -> 1280,240) ---
-  print_status "$CYAN" "  Launching instance 1 ($ROBLOX_PKG_1)..."
-  am start --windowingMode 5 -n "$ROBLOX_PKG_1/com.roblox.client.startup.ActivitySplash" 2>/dev/null
+  # --- Instance 1: top row ---
+  print_status "$CYAN" "  Launching instance 1 (user $ROBLOX_USER_1)..."
+  am start --user "$ROBLOX_USER_1" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
   sleep 8
 
-  TASK1=$(get_task_id "$ROBLOX_PKG_1")
+  TASK1=$(get_task_id "$ROBLOX_USER_1")
   if [ -n "$TASK1" ]; then
     am task resize "$TASK1" 0 0 "$DISPLAY_W" "$ROW_H" 2>/dev/null
     print_status "$GREEN" "  Instance 1 positioned: 0,0 -> ${DISPLAY_W},${ROW_H}"
@@ -299,48 +304,36 @@ launch_roblox_instances() {
     print_status "$YELLOW" "  Could not find task for instance 1"
   fi
 
-  # --- Instance 2: middle row (0,240 -> 1280,480) ---
+  # --- Instance 2: middle row ---
   TOP2=$ROW_H
   BOT2=$((ROW_H * 2))
 
-  if [ "$ROBLOX_PKG_2" != "$ROBLOX_PKG_1" ]; then
-    print_status "$CYAN" "  Launching instance 2 ($ROBLOX_PKG_2)..."
-    am start --windowingMode 5 -n "$ROBLOX_PKG_2/com.roblox.client.startup.ActivitySplash" 2>/dev/null
-    sleep 8
+  print_status "$CYAN" "  Launching instance 2 (user $ROBLOX_USER_2)..."
+  am start --user "$ROBLOX_USER_2" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
+  sleep 8
 
-    TASK2=$(get_task_id "$ROBLOX_PKG_2")
-    if [ -n "$TASK2" ]; then
-      am task resize "$TASK2" 0 "$TOP2" "$DISPLAY_W" "$BOT2" 2>/dev/null
-      print_status "$GREEN" "  Instance 2 positioned: 0,${TOP2} -> ${DISPLAY_W},${BOT2}"
-    else
-      print_status "$YELLOW" "  Could not find task for instance 2"
-    fi
+  TASK2=$(get_task_id "$ROBLOX_USER_2")
+  if [ -n "$TASK2" ]; then
+    am task resize "$TASK2" 0 "$TOP2" "$DISPLAY_W" "$BOT2" 2>/dev/null
+    print_status "$GREEN" "  Instance 2 positioned: 0,${TOP2} -> ${DISPLAY_W},${BOT2}"
   else
-    print_status "$YELLOW" "  Instance 2 uses same package as instance 1"
-    print_status "$YELLOW" "  Launch your clone app manually, then run:"
-    print_status "$YELLOW" "    am task resize <taskId> 0 $TOP2 $DISPLAY_W $BOT2"
+    print_status "$YELLOW" "  Could not find task for instance 2"
   fi
 
-  # --- Instance 3: bottom row (0,480 -> 1280,720) ---
+  # --- Instance 3: bottom row ---
   TOP3=$((ROW_H * 2))
   BOT3=$DISPLAY_H
 
-  if [ "$ROBLOX_PKG_3" != "$ROBLOX_PKG_1" ] && [ "$ROBLOX_PKG_3" != "$ROBLOX_PKG_2" ]; then
-    print_status "$CYAN" "  Launching instance 3 ($ROBLOX_PKG_3)..."
-    am start --windowingMode 5 -n "$ROBLOX_PKG_3/com.roblox.client.startup.ActivitySplash" 2>/dev/null
-    sleep 8
+  print_status "$CYAN" "  Launching instance 3 (user $ROBLOX_USER_3)..."
+  am start --user "$ROBLOX_USER_3" --windowingMode 5 -n "$ROBLOX_PKG/$ROBLOX_ACTIVITY" 2>/dev/null
+  sleep 8
 
-    TASK3=$(get_task_id "$ROBLOX_PKG_3")
-    if [ -n "$TASK3" ]; then
-      am task resize "$TASK3" 0 "$TOP3" "$DISPLAY_W" "$BOT3" 2>/dev/null
-      print_status "$GREEN" "  Instance 3 positioned: 0,${TOP3} -> ${DISPLAY_W},${BOT3}"
-    else
-      print_status "$YELLOW" "  Could not find task for instance 3"
-    fi
+  TASK3=$(get_task_id "$ROBLOX_USER_3")
+  if [ -n "$TASK3" ]; then
+    am task resize "$TASK3" 0 "$TOP3" "$DISPLAY_W" "$BOT3" 2>/dev/null
+    print_status "$GREEN" "  Instance 3 positioned: 0,${TOP3} -> ${DISPLAY_W},${BOT3}"
   else
-    print_status "$YELLOW" "  Instance 3 uses same package as another instance"
-    print_status "$YELLOW" "  Launch your clone app manually, then run:"
-    print_status "$YELLOW" "    am task resize <taskId> 0 $TOP3 $DISPLAY_W $BOT3"
+    print_status "$YELLOW" "  Could not find task for instance 3"
   fi
 }
 
@@ -348,14 +341,7 @@ launch_roblox_instances() {
 # Memory Trim Signal
 # ============================================================
 trim_memory() {
-  # Find all Roblox PIDs across all packages
-  ALL_PIDS=""
-  for pkg in "$ROBLOX_PKG_1" "$ROBLOX_PKG_2" "$ROBLOX_PKG_3"; do
-    PIDS=$(pidof "$pkg" 2>/dev/null)
-    if [ -n "$PIDS" ]; then
-      ALL_PIDS="$ALL_PIDS $PIDS"
-    fi
-  done
+  ALL_PIDS=$(pidof "$ROBLOX_PKG" 2>/dev/null)
 
   if [ -z "$ALL_PIDS" ]; then
     print_status "$YELLOW" "No Roblox instances running, skipping trim."
