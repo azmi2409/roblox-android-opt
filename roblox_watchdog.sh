@@ -139,14 +139,16 @@ restart_instance() {
 # ============================================================
 # Main watchdog loop
 # ============================================================
-ROW_H=$((DISPLAY_H / USER_COUNT))
+STATUS_BAR_H=36
+USABLE_H=$((DISPLAY_H - STATUS_BAR_H))
+ROW_H=$((USABLE_H / USER_COUNT))
 
 while true; do
   instance=0
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((ROW_H * (instance - 1)))
-    BOT=$((ROW_H * instance))
+    TOP=$((STATUS_BAR_H + ROW_H * (instance - 1)))
+    BOT=$((STATUS_BAR_H + ROW_H * instance))
 
     if [ "$instance" -eq "$USER_COUNT" ]; then
       BOT=$DISPLAY_H

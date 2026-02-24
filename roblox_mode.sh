@@ -524,13 +524,17 @@ launch_roblox_instances() {
     fi
   fi
 
-  ROW_H=$((DISPLAY_H / USER_COUNT))
+  # Status bar height (~36px at 240dpi) — reserve top space
+  STATUS_BAR_H=36
+  # Usable height after status bar
+  USABLE_H=$((DISPLAY_H - STATUS_BAR_H))
+  ROW_H=$((USABLE_H / USER_COUNT))
   instance=0
 
   for uid in $ROBLOX_USERS; do
     instance=$((instance + 1))
-    TOP=$((ROW_H * (instance - 1)))
-    BOT=$((ROW_H * instance))
+    TOP=$((STATUS_BAR_H + ROW_H * (instance - 1)))
+    BOT=$((STATUS_BAR_H + ROW_H * instance))
 
     # Last instance takes remaining pixels to avoid gaps
     if [ "$instance" -eq "$USER_COUNT" ]; then
