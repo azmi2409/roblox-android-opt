@@ -128,20 +128,52 @@ else
 fi
 
 # Ensure /data/local/tmp/roblox-opt is in PATH for current and future shells
-# Add to multiple profile files for broad compatibility
-for profile in /etc/profile /system/etc/mkshrc /data/local/tmp/.mkshrc; do
-  if [ -f "$profile" ] || [ "$profile" = "/data/local/tmp/.mkshrc" ]; then
+PATH_LINE='export PATH="$PATH:/data/local/tmp/roblox-opt"'
+ADDED_PATH=0
+
+# Termux user shell (~/.bashrc)
+TERMUX_BASHRC="/data/data/com.termux/files/home/.bashrc"
+if [ -f "$TERMUX_BASHRC" ] || [ -d "/data/data/com.termux/files/home" ]; then
+  if ! grep -q "roblox-opt" "$TERMUX_BASHRC" 2>/dev/null; then
+    printf '\n# Roblox optimizer commands\n%s\n' "$PATH_LINE" >> "$TERMUX_BASHRC" 2>/dev/null
+    ADDED_PATH=1
+    msg "$GREEN" "  Added to Termux ~/.bashrc"
+  else
+    msg "$GREEN" "  Already in Termux ~/.bashrc"
+  fi
+fi
+
+# Termux .profile (some setups use this instead)
+TERMUX_PROFILE="/data/data/com.termux/files/home/.profile"
+if [ -f "$TERMUX_PROFILE" ]; then
+  if ! grep -q "roblox-opt" "$TERMUX_PROFILE" 2>/dev/null; then
+    printf '\n# Roblox optimizer commands\n%s\n' "$PATH_LINE" >> "$TERMUX_PROFILE" 2>/dev/null
+    ADDED_PATH=1
+    msg "$GREEN" "  Added to Termux ~/.profile"
+  fi
+fi
+
+# Root shell profile (/data/local/tmp is root's typical home)
+for profile in /etc/profile /system/etc/mkshrc; do
+  if [ -f "$profile" ]; then
     if ! grep -q "roblox-opt" "$profile" 2>/dev/null; then
       mount -o rw,remount /system 2>/dev/null
       printf '\nexport PATH="$PATH:/data/local/tmp/roblox-opt"\n' >> "$profile" 2>/dev/null
       mount -o ro,remount /system 2>/dev/null
+      ADDED_PATH=1
+      msg "$GREEN" "  Added to $profile"
     fi
   fi
 done
 
-# Also create direct aliases in /data/local/tmp so su -c finds them
+# Symlinks in /data/local/tmp as fallback (su -c often searches here)
 ln -sf "$INSTALL_DIR/roblox-on" /data/local/tmp/roblox-on 2>/dev/null
 ln -sf "$INSTALL_DIR/roblox-off" /data/local/tmp/roblox-off 2>/dev/null
+
+if [ "$ADDED_PATH" -eq 0 ]; then
+  msg "$YELLOW" "  Could not add to any profile, add manually:"
+  msg "$YELLOW" "  echo '$PATH_LINE' >> ~/.bashrc"
+fi
 
 msg "$GREEN" "  Created: roblox-on"
 msg "$GREEN" "  Created: roblox-off"
